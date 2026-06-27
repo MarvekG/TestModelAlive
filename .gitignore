@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+.venv/
+venv/
+env/
+
+codex.txt
+claude.txt
+claude-settings.json
+claude-settings.json.*.bak
+*.log
+
+.DS_Store
