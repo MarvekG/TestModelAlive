@@ -19,8 +19,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-import test_claude_models as claude_core
-import test_codex_models as codex_core
+import tsa_claude_models as claude_core
+import tsa_codex_models as codex_core
 
 
 try:

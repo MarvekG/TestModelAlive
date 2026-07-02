@@ -35,10 +35,18 @@
 
 ## 文件设计
 
-新增文件：
+Python 工具目录：
+
+```text
+lagacy/
+```
+
+核心文件：
 
 ```text
 tsa_gui.py
+tsa_codex_models.py
+tsa_claude_models.py
 ```
 
 运行依赖：
@@ -53,7 +61,7 @@ python3 -m pip install PyQt6
 tsa_endpoints.json
 ```
 
-`tsa_endpoints.json` 位于当前工作目录。GUI 启动时读取该文件；保存、删除或更新端点后写回该文件。两个 CLI 脚本也默认读取该文件，并按 `type` 过滤出各自端点。
+`tsa_endpoints.json` 位于当前工作目录。建议从 `lagacy/` 目录运行 GUI 和 CLI，这样配置文件会保存在 `lagacy/tsa_endpoints.json`。GUI 启动时读取该文件；保存、删除或更新端点后写回该文件。两个 CLI 脚本也默认读取该文件，并按 `type` 过滤出各自端点。
 
 ## 数据结构
 
@@ -142,9 +150,9 @@ sk-1234...abcd
 
 ## CLI 读取规则
 
-`test_codex_models.py` 默认读取 `tsa_endpoints.json`，只使用 `type` 为 `codex` 的端点。
+`tsa_codex_models.py` 默认读取 `tsa_endpoints.json`，只使用 `type` 为 `codex` 的端点。
 
-`test_claude_models.py` 默认读取 `tsa_endpoints.json`，只使用 `type` 为 `claude` 的端点。
+`tsa_claude_models.py` 默认读取 `tsa_endpoints.json`，只使用 `type` 为 `claude` 的端点。
 
 两个脚本仍保留参数名：
 
