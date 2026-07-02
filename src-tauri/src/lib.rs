@@ -793,16 +793,29 @@ fn executable_candidates(dir: &Path, program: &str) -> Vec<PathBuf> {
 fn command_process(program: &Path, args: &[String]) -> Command {
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
         let extension = program.extension().and_then(|value| value.to_str()).unwrap_or_default();
         if extension.eq_ignore_ascii_case("cmd") || extension.eq_ignore_ascii_case("bat") {
             let mut command = Command::new("cmd");
             command.arg("/C").arg(program).args(args);
+            command.creation_flags(CREATE_NO_WINDOW);
             return command;
         }
+
+        let mut command = Command::new(program);
+        command.args(args);
+        command.creation_flags(CREATE_NO_WINDOW);
+        return command;
     }
+
+    #[cfg(not(windows))]
+    {
     let mut command = Command::new(program);
     command.args(args);
     command
+    }
 }
 
 fn shell_join(program: &Path, args: &[String]) -> String {
