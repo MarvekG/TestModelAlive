@@ -101,6 +101,12 @@ struct RestorableFile {
     existed: bool,
 }
 
+struct TestCommand {
+    program: String,
+    args: Vec<String>,
+    envs: Vec<(String, String)>,
+}
+
 impl RestorableFile {
     fn new(path: impl Into<PathBuf>) -> Self {
         Self {
@@ -156,13 +162,14 @@ pub fn run() {
 }
 
 #[tauri::command]
-fn load_endpoints() -> Result<Vec<SavedEndpoint>, String> {
-    Ok(read_store()?.endpoints)
+fn load_endpoints(app: tauri::AppHandle) -> Result<Vec<SavedEndpoint>, String> {
+    Ok(read_store(&store_path(&app, DATA_FILE)?)?.endpoints)
 }
 
 #[tauri::command]
-fn add_endpoint(request: AddEndpointRequest) -> Result<SavedEndpoint, String> {
-    let mut store = read_store()?;
+fn add_endpoint(app: tauri::AppHandle, request: AddEndpointRequest) -> Result<SavedEndpoint, String> {
+    let path = store_path(&app, DATA_FILE)?;
+    let mut store = read_store(&path)?;
     let endpoint_type = request.endpoint_type.trim().to_string();
     let endpoint = SavedEndpoint {
         id: new_id(&endpoint_type, &store.endpoints)?,
@@ -177,20 +184,21 @@ fn add_endpoint(request: AddEndpointRequest) -> Result<SavedEndpoint, String> {
             .collect(),
     };
     store.endpoints.push(endpoint.clone());
-    write_store(&store)?;
+    write_store(&path, &store)?;
     Ok(endpoint)
 }
 
 #[tauri::command]
-fn delete_endpoint(endpoint_id: String) -> Result<(), String> {
-    let mut store = read_store()?;
+fn delete_endpoint(app: tauri::AppHandle, endpoint_id: String) -> Result<(), String> {
+    let path = store_path(&app, DATA_FILE)?;
+    let mut store = read_store(&path)?;
     store.endpoints.retain(|endpoint| endpoint.id != endpoint_id);
-    write_store(&store)
+    write_store(&path, &store)
 }
 
 #[tauri::command]
-fn load_test_settings() -> Result<TestSettings, String> {
-    let path = Path::new(TEST_SETTINGS_FILE);
+fn load_test_settings(app: tauri::AppHandle) -> Result<TestSettings, String> {
+    let path = store_path(&app, TEST_SETTINGS_FILE)?;
     if !path.exists() {
         return Ok(default_test_settings());
     }
@@ -206,7 +214,7 @@ fn load_test_settings() -> Result<TestSettings, String> {
 }
 
 #[tauri::command]
-fn save_test_settings(settings: TestSettings) -> Result<(), String> {
+fn save_test_settings(app: tauri::AppHandle, settings: TestSettings) -> Result<(), String> {
     let prompt = settings.prompt.trim().to_string();
     let success_keyword = settings.success_keyword.trim().to_string();
     if prompt.is_empty() {
@@ -220,7 +228,7 @@ fn save_test_settings(settings: TestSettings) -> Result<(), String> {
     }
     let settings = TestSettings { prompt, success_keyword };
     let text = serde_json::to_string_pretty(&settings).map_err(|err| err.to_string())?;
-    fs::write(TEST_SETTINGS_FILE, format!("{text}\n")).map_err(|err| err.to_string())
+    fs::write(store_path(&app, TEST_SETTINGS_FILE)?, format!("{text}\n")).map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -314,8 +322,7 @@ fn test_models(
     Ok(())
 }
 
-fn read_store() -> Result<EndpointStore, String> {
-    let path = Path::new(DATA_FILE);
+fn read_store(path: &Path) -> Result<EndpointStore, String> {
     if !path.exists() {
         return Ok(EndpointStore {
             version: 1,
@@ -330,9 +337,35 @@ fn read_store() -> Result<EndpointStore, String> {
     Ok(store)
 }
 
-fn write_store(store: &EndpointStore) -> Result<(), String> {
+fn write_store(path: &Path, store: &EndpointStore) -> Result<(), String> {
     let text = serde_json::to_string_pretty(store).map_err(|err| err.to_string())?;
-    fs::write(DATA_FILE, format!("{text}\n")).map_err(|err| err.to_string())
+    fs::write(path, format!("{text}\n")).map_err(|err| err.to_string())
+}
+
+fn store_path(app: &tauri::AppHandle, file_name: &str) -> Result<PathBuf, String> {
+    let dir = app_data_dir(app)?;
+    fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
+    let path = dir.join(file_name);
+    let legacy_path = Path::new(file_name);
+    if !path.exists() && legacy_path.exists() {
+        fs::copy(legacy_path, &path).map_err(|err| err.to_string())?;
+    }
+    Ok(path)
+}
+
+fn app_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = user_home_dir()
+        .or_else(|_| app.path().app_data_dir().map_err(|err| err.to_string()))?
+        .join(".TestModelAlive");
+    fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
+    Ok(dir)
+}
+
+fn user_home_dir() -> Result<PathBuf, String> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .ok_or_else(|| "HOME/USERPROFILE is not set".to_string())
 }
 
 fn default_test_settings() -> TestSettings {
@@ -420,9 +453,9 @@ fn run_model_test(
 ) -> Result<TestResult, String> {
     let start = Instant::now();
     let (command, guards) = if endpoint.endpoint_type == "codex" {
-        prepare_codex(endpoint, model, prompt)?
+        prepare_codex(app, endpoint, model, prompt)?
     } else {
-        prepare_claude(endpoint, model, prompt)?
+        prepare_claude(app, endpoint, model, prompt)?
     };
     let (status, detail) = run_command(app, on_event, state, command, timeout, success_keyword)?;
     drop(guards);
@@ -434,15 +467,11 @@ fn run_model_test(
     })
 }
 
-fn prepare_codex(endpoint: &SavedEndpoint, model: &str, prompt: &str) -> Result<(Vec<String>, Vec<RestorableFile>), String> {
-    let codex_dir = home_dir()?.join(".codex");
+fn prepare_codex(app: &tauri::AppHandle, endpoint: &SavedEndpoint, model: &str, prompt: &str) -> Result<(TestCommand, Vec<RestorableFile>), String> {
+    let codex_dir = app_data_dir(app)?.join("codex-home");
     fs::create_dir_all(&codex_dir).map_err(|err| err.to_string())?;
     let auth_path = codex_dir.join("auth.json");
     let config_path = codex_dir.join("config.toml");
-    let mut guards = vec![RestorableFile::new(&auth_path), RestorableFile::new(&config_path)];
-    for guard in &mut guards {
-        guard.begin()?;
-    }
     fs::write(
         &auth_path,
         format!(
@@ -459,18 +488,22 @@ fn prepare_codex(endpoint: &SavedEndpoint, model: &str, prompt: &str) -> Result<
     );
     fs::write(config_path, config).map_err(|err| err.to_string())?;
     Ok((
-        vec![
-            "codex".to_string(),
-            "exec".to_string(),
-            "--skip-git-repo-check".to_string(),
-            prompt.to_string(),
-        ],
-        guards,
+        TestCommand {
+            program: "codex".to_string(),
+            args: vec![
+                "exec".to_string(),
+                "--skip-git-repo-check".to_string(),
+                "--ignore-user-config".to_string(),
+                prompt.to_string(),
+            ],
+            envs: vec![("CODEX_HOME".to_string(), codex_dir.to_string_lossy().to_string())],
+        },
+        Vec::new(),
     ))
 }
 
-fn prepare_claude(endpoint: &SavedEndpoint, model: &str, prompt: &str) -> Result<(Vec<String>, Vec<RestorableFile>), String> {
-    let settings_path = PathBuf::from("claude-settings.json");
+fn prepare_claude(app: &tauri::AppHandle, endpoint: &SavedEndpoint, model: &str, prompt: &str) -> Result<(TestCommand, Vec<RestorableFile>), String> {
+    let settings_path = store_path(app, "claude-settings.json")?;
     let mut guard = RestorableFile::new(&settings_path);
     guard.begin()?;
     let settings = serde_json::json!({
@@ -485,17 +518,20 @@ fn prepare_claude(endpoint: &SavedEndpoint, model: &str, prompt: &str) -> Result
     )
     .map_err(|err| err.to_string())?;
     Ok((
-        vec![
-            "claude".to_string(),
-            "--debug".to_string(),
-            "--verbose".to_string(),
-            "--settings".to_string(),
-            settings_path.to_string_lossy().to_string(),
-            "--model".to_string(),
-            model.to_string(),
-            "-p".to_string(),
-            prompt.to_string(),
-        ],
+        TestCommand {
+            program: "claude".to_string(),
+            args: vec![
+                "--debug".to_string(),
+                "--verbose".to_string(),
+                "--settings".to_string(),
+                settings_path.to_string_lossy().to_string(),
+                "--model".to_string(),
+                model.to_string(),
+                "-p".to_string(),
+                prompt.to_string(),
+            ],
+            envs: Vec::new(),
+        },
         vec![guard],
     ))
 }
@@ -504,13 +540,14 @@ fn run_command(
     app: &tauri::AppHandle,
     on_event: &Channel<TestMessage>,
     state: &tauri::State<'_, AppState>,
-    command: Vec<String>,
+    command: TestCommand,
     timeout: u64,
     success_keyword: &str,
 ) -> Result<(String, String), String> {
-    emit_test_log(app, on_event, &format!("running: {}", shell_join(&command)));
-    let mut process = Command::new(&command[0]);
-    process.args(&command[1..]).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let program_path = resolve_program(&command.program)?;
+    emit_test_log(app, on_event, &format!("running: {}", shell_join(&program_path, &command.args)));
+    let mut process = command_process(&program_path, &command.args);
+    process.envs(command.envs.iter().map(|(key, value)| (key, value))).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -627,7 +664,15 @@ fn terminate_child(child: &Arc<Mutex<Child>>) -> Result<(), String> {
     }
     #[cfg(not(unix))]
     {
-        let _ = child.kill();
+        let pid = child.id().to_string();
+        let status = Command::new("taskkill")
+            .args(["/PID", &pid, "/T", "/F"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        if status.is_err() {
+            let _ = child.kill();
+        }
     }
     Ok(())
 }
@@ -642,12 +687,6 @@ fn next_backup_path(path: &Path) -> Result<PathBuf, String> {
         }
     }
     Err(format!("could not allocate backup path for {}", path.display()))
-}
-
-fn home_dir() -> Result<PathBuf, String> {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .ok_or_else(|| "HOME is not set".to_string())
 }
 
 fn stop_requested(state: &tauri::State<'_, AppState>) -> bool {
@@ -686,13 +725,97 @@ fn tail_chars(value: &str, limit: usize) -> String {
     chars[start..].iter().collect()
 }
 
-fn shell_join(command: &[String]) -> String {
-    command.iter().map(|part| shell_quote(part)).collect::<Vec<_>>().join(" ")
+fn resolve_program(program: &str) -> Result<PathBuf, String> {
+    let program_path = Path::new(program);
+    if program_path.components().count() > 1 && program_path.exists() {
+        return Ok(program_path.to_path_buf());
+    }
+    for dir in cli_search_paths() {
+        for candidate in executable_candidates(&dir, program) {
+            if candidate.is_file() {
+                return Ok(candidate);
+            }
+        }
+    }
+    Err(format!("{program} command not found in PATH or common install locations"))
+}
+
+fn cli_search_paths() -> Vec<PathBuf> {
+    let mut paths = std::env::var_os("PATH")
+        .map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
+        .unwrap_or_default();
+    #[cfg(windows)]
+    {
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            paths.push(PathBuf::from(appdata).join("npm"));
+        }
+        if let Some(userprofile) = std::env::var_os("USERPROFILE") {
+            paths.push(PathBuf::from(userprofile).join("AppData").join("Roaming").join("npm"));
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        paths.push(PathBuf::from("/usr/local/bin"));
+        paths.push(PathBuf::from("/opt/homebrew/bin"));
+        if let Some(home) = std::env::var_os("HOME") {
+            let home = PathBuf::from(home);
+            paths.push(home.join(".local/bin"));
+            paths.push(home.join(".npm-global/bin"));
+        }
+    }
+    paths
+}
+
+fn executable_candidates(dir: &Path, program: &str) -> Vec<PathBuf> {
+    #[cfg(windows)]
+    {
+        ["", ".exe", ".cmd", ".bat", ".ps1"]
+            .iter()
+            .map(|extension| dir.join(format!("{program}{extension}")))
+            .collect()
+    }
+    #[cfg(not(windows))]
+    {
+        vec![dir.join(program)]
+    }
+}
+
+fn command_process(program: &Path, args: &[String]) -> Command {
+    #[cfg(windows)]
+    {
+        let extension = program.extension().and_then(|value| value.to_str()).unwrap_or_default();
+        if extension.eq_ignore_ascii_case("cmd") || extension.eq_ignore_ascii_case("bat") {
+            let mut command = Command::new("cmd");
+            command.arg("/C").arg(program).args(args);
+            return command;
+        }
+    }
+    let mut command = Command::new(program);
+    command.args(args);
+    command
+}
+
+fn shell_join(program: &Path, args: &[String]) -> String {
+    std::iter::once(program.to_string_lossy().to_string())
+        .chain(args.iter().cloned())
+        .map(|part| shell_quote(&part))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn shell_quote(value: &str) -> String {
+    #[cfg(windows)]
+    {
+        if value.chars().all(|ch| ch.is_ascii_alphanumeric() || "-_./:=\\".contains(ch)) {
+            return value.to_string();
+        }
+        return format!("\"{}\"", value.replace('"', "\\\""));
+    }
+    #[cfg(not(windows))]
+    {
     if value.chars().all(|ch| ch.is_ascii_alphanumeric() || "-_./:=+".contains(ch)) {
         return value.to_string();
     }
     format!("'{}'", value.replace('\'', "'\\''"))
+    }
 }

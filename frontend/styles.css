@@ -156,6 +156,11 @@ tr.selected {
   padding: 10px 14px;
 }
 
+.language-toggle {
+  margin-left: auto;
+  min-width: 76px;
+}
+
 .app-bar h1 {
   font-size: 1.25rem;
   line-height: 1;
