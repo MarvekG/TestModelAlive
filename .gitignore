@@ -8,6 +8,7 @@ env/
 
 codex.txt
 claude.txt
+tsa_endpoints.json
 claude-settings.json
 claude-settings.json.*.bak
 *.log

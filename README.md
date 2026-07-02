@@ -7,8 +7,54 @@ Python 小工具。
 
 - `test_codex_models.py`：通过 `codex exec` 测试 OpenAI 兼容端点。
 - `test_claude_models.py`：通过 `claude -p` 测试 Anthropic 兼容端点。
+- `tsa_gui.py`：PyQt6 GUI，用于管理端点、拉取模型并测活。
 - `codex.txt`：本地 Codex 端点列表，已被 git 忽略。
 - `claude.txt`：本地 Claude 端点列表，已被 git 忽略。
+
+## GUI 用法
+
+GUI 依赖 PyQt6：
+
+```bash
+python3 -m pip install PyQt6
+```
+
+启动 GUI：
+
+```bash
+python3 tsa_gui.py
+```
+
+GUI 会在当前目录读写 `tsa_endpoints.json`，用于保存端点 URL、API Key 和已选择模型。
+该文件包含明文 API Key，已被 `.gitignore` 忽略，请不要提交或公开。
+
+如果 Linux 桌面环境中中文显示为方块或乱码，请先安装中文字体，例如：
+
+```bash
+sudo apt install fonts-noto-cjk
+```
+
+或：
+
+```bash
+sudo apt install fonts-wqy-microhei
+```
+
+PyQt6 会使用 Qt/Fontconfig 字体系统，通常能正确使用系统中的中文字体。
+
+基本流程：
+
+1. 选择 `codex` 或 `claude`。
+2. 填写端点 URL 和 SK。
+3. 点击“拉取模型”。
+4. 勾选要保存的模型，可使用“全选 / 全不选 / 反选”。
+5. 点击“保存端点”。
+6. 在已保存端点列表中选择端点，可执行“测试 / 删除 / 刷新 / 加载 / 复制 URL / 复制 KEY”。
+7. 点击“加载”会把端点类型、URL、SK 和保存的模型回填到左侧输入区。
+8. 点击“测试”打开测试弹窗，选择模型并开始测活。
+9. Claude 端点测试时可勾选“模型后追加 1M 上下文 [1m]”，测试时会把模型 ID 后缀追加为 `[1m]`，不会修改保存数据。
+
+GUI 拉取模型时支持普通 JSON、`gzip` 和 `deflate` 压缩响应。即使服务端漏写 `Content-Encoding: gzip`，只要响应体是 gzip 格式也会自动解压。
 
 ## 输入格式
 
@@ -74,8 +120,9 @@ python3 test_claude_models.py --domain kimi --models claude-opus-4-6
 
 ## 注意事项
 
-脚本运行测试时会临时写入 CLI 配置，并在退出前恢复原始文件。端点文件可能包含
-API Key，请不要提交或公开这些文件。
+脚本和 GUI 运行测试时会临时写入 CLI 配置，并在测试结束、异常、超时或点击停止后恢复原始文件。
+Codex 会临时修改 `~/.codex/auth.json` 和 `~/.codex/config.toml`；Claude 会临时修改当前目录的 `claude-settings.json`。
+端点文件和 `tsa_endpoints.json` 可能包含 API Key，请不要提交或公开这些文件。
 
 ## 友情链接
 
