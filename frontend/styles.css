@@ -111,7 +111,10 @@ tbody tr {
 }
 
 tr.selected {
-  background: #eef4ff;
+  background: #bfdbfe;
+  box-shadow: inset 4px 0 0 #1d4ed8;
+  color: #0f2f75;
+  font-weight: 750;
 }
 
 .shell {
@@ -146,6 +149,7 @@ tr.selected {
   display: grid;
   gap: 10px;
   grid-template-columns: 330px minmax(420px, 1fr);
+  grid-template-rows: minmax(520px, auto) auto;
 }
 
 .card {
@@ -182,14 +186,17 @@ tr.selected {
   display: grid;
   gap: 9px;
   grid-column: 1;
+  min-height: 520px;
 }
 
 .table-card {
   grid-column: 2;
+  min-height: 520px;
 }
 
 .models-card {
-  grid-column: 1;
+  grid-column: 1 / -1;
+  margin-top: 18px;
 }
 
 .actions {
@@ -209,15 +216,15 @@ tr.selected {
 .table-wrap {
   border: 1px solid #edf1f7;
   border-radius: 10px;
-  max-height: 260px;
+  max-height: 430px;
   overflow: auto;
 }
 
 .check-list {
   display: grid;
   gap: 6px;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  max-height: 280px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  max-height: 170px;
   overflow: auto;
   padding-right: 3px;
 }
@@ -238,6 +245,14 @@ tr.selected {
   gap: 7px;
   min-width: 0;
   padding: 6px 8px;
+}
+
+.model-check.checked {
+  background: #dbeafe;
+  border-color: #2563eb;
+  box-shadow: inset 3px 0 0 #2454d6, 0 4px 12px rgb(36 84 214 / 16%);
+  color: #0f2f75;
+  font-weight: 750;
 }
 
 .model-check input {

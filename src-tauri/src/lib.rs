@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::{Emitter, Manager};
+use tauri::{ipc::Channel, Emitter, Manager};
 use time::OffsetDateTime;
 
 const DATA_FILE: &str = "tsa_endpoints.json";
@@ -70,12 +70,15 @@ struct LogEvent {
 }
 
 #[derive(Clone, Debug, Serialize)]
-struct TestResultEvent {
-    result: TestResult,
+#[serde(tag = "kind")]
+enum TestMessage {
+    #[serde(rename = "log")]
+    Log { message: String, stream: bool },
+    #[serde(rename = "result")]
+    Result { result: TestResult },
+    #[serde(rename = "finished")]
+    Finished,
 }
-
-#[derive(Clone, Debug, Serialize)]
-struct TestFinishedEvent {}
 
 #[derive(Default)]
 struct AppState {
@@ -210,6 +213,7 @@ fn test_models(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     request: TestModelsRequest,
+    on_event: Channel<TestMessage>,
 ) -> Result<(), String> {
     {
         *state.stop_requested.lock().map_err(|err| err.to_string())? = false;
@@ -221,13 +225,13 @@ fn test_models(
         if request.endpoint.endpoint_type == "claude" && request.append_1m {
             models = models.into_iter().map(|model| format!("{model}[1m]")).collect();
         }
-        emit_log(&app_handle, &format!("starting test: {} models", models.len()));
+        emit_test_log(&app_handle, &on_event, &format!("starting test: {} models", models.len()));
         for model in models {
             if stop_requested(&state) {
                 break;
             }
-            emit_log(&app_handle, &format!("testing model: {model}"));
-            let result = match run_model_test(&app_handle, &state, &request.endpoint, &model, request.timeout) {
+            emit_test_log(&app_handle, &on_event, &format!("testing model: {model}"));
+            let result = match run_model_test(&app_handle, &on_event, &state, &request.endpoint, &model, request.timeout) {
                 Ok(result) => result,
                 Err(err) => TestResult {
                     model: model.clone(),
@@ -236,23 +240,21 @@ fn test_models(
                     detail: err,
                 },
             };
-            let _ = app_handle.emit("test-result", TestResultEvent { result: result.clone() });
-            emit_log(
+            let _ = on_event.send(TestMessage::Result { result: result.clone() });
+            emit_test_log(
                 &app_handle,
+                &on_event,
                 &format!(
                     "MODEL_STATUS={} model={} elapsed={:.1}s",
                     result.status, result.model, result.seconds
                 ),
             );
-            if !result.detail.is_empty() && result.status != "AVAILABLE" {
-                emit_log(&app_handle, &result.detail);
-            }
             if result.status == "STOPPED" {
                 break;
             }
         }
-        let _ = app_handle.emit("test-finished", TestFinishedEvent {});
-        emit_log(&app_handle, "test finished");
+        let _ = on_event.send(TestMessage::Finished);
+        emit_test_log(&app_handle, &on_event, "test finished");
     });
     Ok(())
 }
@@ -346,6 +348,7 @@ fn fetch_endpoint_models(endpoint: &SavedEndpoint, timeout: u64) -> Result<Vec<S
 
 fn run_model_test(
     app: &tauri::AppHandle,
+    on_event: &Channel<TestMessage>,
     state: &tauri::State<'_, AppState>,
     endpoint: &SavedEndpoint,
     model: &str,
@@ -357,7 +360,7 @@ fn run_model_test(
     } else {
         prepare_claude(endpoint, model)?
     };
-    let (status, detail) = run_command(app, state, command, timeout)?;
+    let (status, detail) = run_command(app, on_event, state, command, timeout)?;
     drop(guards);
     Ok(TestResult {
         model: model.to_string(),
@@ -435,11 +438,12 @@ fn prepare_claude(endpoint: &SavedEndpoint, model: &str) -> Result<(Vec<String>,
 
 fn run_command(
     app: &tauri::AppHandle,
+    on_event: &Channel<TestMessage>,
     state: &tauri::State<'_, AppState>,
     command: Vec<String>,
     timeout: u64,
 ) -> Result<(String, String), String> {
-    emit_log(app, &format!("running: {}", shell_join(&command)));
+    emit_test_log(app, on_event, &format!("running: {}", shell_join(&command)));
     let mut process = Command::new(&command[0]);
     process.args(&command[1..]).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(unix)]
@@ -454,7 +458,7 @@ fn run_command(
     }
     let child = Arc::new(Mutex::new(process.spawn().map_err(|err| {
         let message = format!("failed to start command: {err}");
-        emit_log(app, &message);
+        emit_test_log(app, on_event, &message);
         message
     })?));
     *state.current_child.lock().map_err(|err| err.to_string())? = Some(child.clone());
@@ -471,8 +475,8 @@ fn run_command(
         .take()
         .ok_or_else(|| "failed to capture stderr".to_string())?;
     let output = Arc::new(Mutex::new(String::new()));
-    let stdout_reader = spawn_stream_reader(app.clone(), stdout, output.clone(), false);
-    let stderr_reader = spawn_stream_reader(app.clone(), stderr, output.clone(), true);
+    let stdout_reader = spawn_stream_reader(on_event.clone(), stdout, output.clone(), false);
+    let stderr_reader = spawn_stream_reader(on_event.clone(), stderr, output.clone(), true);
 
     let deadline = Instant::now() + Duration::from_secs(timeout);
     let status = loop {
@@ -513,7 +517,7 @@ fn run_command(
 }
 
 fn spawn_stream_reader<R: Read + Send + 'static>(
-    app: tauri::AppHandle,
+    on_event: Channel<TestMessage>,
     mut stream: R,
     output: Arc<Mutex<String>>,
     is_stderr: bool,
@@ -527,7 +531,10 @@ fn spawn_stream_reader<R: Read + Send + 'static>(
                 Err(_) => break,
             };
             let chunk = String::from_utf8_lossy(&buffer[..count]).to_string();
-            emit_stream_log(&app, &chunk);
+            let _ = on_event.send(TestMessage::Log {
+                message: chunk.clone(),
+                stream: true,
+            });
             if is_stderr {
                 let _ = std::io::stderr().write_all(&buffer[..count]);
                 let _ = std::io::stderr().flush();
@@ -593,12 +600,17 @@ fn emit_log(app: &tauri::AppHandle, message: &str) {
     );
 }
 
-fn emit_stream_log(app: &tauri::AppHandle, message: &str) {
+fn emit_test_log(app: &tauri::AppHandle, on_event: &Channel<TestMessage>, message: &str) {
+    println!("{message}");
+    let _ = on_event.send(TestMessage::Log {
+        message: message.to_string(),
+        stream: false,
+    });
     let _ = app.emit(
         "test-log",
         LogEvent {
             message: message.to_string(),
-            stream: true,
+            stream: false,
         },
     );
 }

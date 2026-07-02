@@ -1,5 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import "./styles.css";
 
 type EndpointType = "codex" | "claude";
@@ -17,6 +16,13 @@ interface TestResult {
   status: string;
   seconds: number;
   detail: string;
+}
+
+interface TestMessage {
+  kind: "log" | "result" | "finished";
+  message?: string;
+  stream?: boolean;
+  result?: TestResult;
 }
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -152,7 +158,10 @@ app.innerHTML = `
         <div class="test-box test-log-box">
           <div class="test-log-title">
             <h3>日志</h3>
-            <button id="clear-test-log" class="secondary">清空</button>
+            <div class="actions compact">
+              <button id="copy-test-log" class="secondary">复制</button>
+              <button id="clear-test-log" class="secondary">清空</button>
+            </div>
           </div>
           <pre id="test-log-output"></pre>
         </div>
@@ -201,24 +210,10 @@ bind("test-none", "click", () => setSelection(testSelection, testEndpoint?.model
 bind("test-invert", "click", () => invertSelection(testSelection, testEndpoint?.models ?? [], renderTestModels));
 bind("start-test", "click", runTests);
 bind("stop-test", "click", stopTests);
+bind("copy-test-log", "click", copyTestLog);
 bind("clear-test-log", "click", () => {
   testLogChunks = [];
   renderTestLogs();
-});
-
-void listen<{ message: string; stream: boolean }>("test-log", (event) => {
-  if (event.payload.stream) appendStreamLog(event.payload.message);
-  else log(event.payload.message);
-});
-void listen<{ result: TestResult }>("test-result", (event) => {
-  testResults.push(event.payload.result);
-  renderResults();
-});
-void listen("test-finished", () => {
-  testRunning = false;
-  startTest.disabled = false;
-  stopTest.disabled = true;
-  testStatus.textContent = "已结束";
 });
 
 void loadEndpoints();
@@ -334,6 +329,20 @@ async function runTests() {
   stopTest.disabled = false;
   testStatus.textContent = `运行中：${models.length} 个模型`;
   log(`starting CLI test request: type=${testEndpoint.type} url=${testEndpoint.base_url} models=${models.length} timeout=${Number(testTimeout.value || 120)}s`);
+  const onEvent = new Channel<TestMessage>((message) => {
+    if (message.kind === "log" && message.message !== undefined) {
+      if (message.stream) appendStreamLog(message.message);
+      else log(message.message);
+    } else if (message.kind === "result" && message.result) {
+      testResults.push(message.result);
+      renderResults();
+    } else if (message.kind === "finished") {
+      testRunning = false;
+      startTest.disabled = false;
+      stopTest.disabled = true;
+      testStatus.textContent = "已结束";
+    }
+  });
   try {
     await invoke("test_models", {
       request: {
@@ -342,6 +351,7 @@ async function runTests() {
         timeout: Number(testTimeout.value || 120),
         append_1m: append1m.checked,
       },
+      onEvent,
     });
   } catch (error) {
     testRunning = false;
@@ -403,10 +413,12 @@ function renderCheckList(root: HTMLElement, models: string[], selection: Set<str
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = selection.has(model);
+    item.classList.toggle("checked", checkbox.checked);
     checkbox.id = `${prefix}-${model}`;
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) selection.add(model);
       else selection.delete(model);
+      item.classList.toggle("checked", checkbox.checked);
     });
     const text = document.createElement("span");
     text.textContent = model;
@@ -476,6 +488,11 @@ async function copyFromTest(labelText: string, getter: (endpoint: SavedEndpoint)
   if (!testEndpoint) return;
   await navigator.clipboard.writeText(getter(testEndpoint));
   testLog(`copied ${labelText}`);
+}
+
+async function copyTestLog() {
+  await navigator.clipboard.writeText(testLogChunks.join(""));
+  testLog("copied log");
 }
 
 function setSelection(selection: Set<string>, models: string[], checked: boolean, render: () => void) {
