@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.releaseTag }}
 
@@ -58,7 +58,7 @@ jobs:
             patchelf
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -89,7 +89,7 @@ jobs:
         with:
           releaseId: ${{ github.event.release.id }}
           tagName: ${{ github.event.release.tag_name }}
-          uploadUpdaterJson: false
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
 
       - name: Build and upload Tauri bundles manually
@@ -99,5 +99,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ inputs.releaseTag }}
-          uploadUpdaterJson: false
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
