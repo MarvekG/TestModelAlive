@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 fn main() {
     set_default_env("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     set_default_env("LIBGL_ALWAYS_SOFTWARE", "1");
