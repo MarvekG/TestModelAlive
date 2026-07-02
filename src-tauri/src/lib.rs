@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -622,7 +622,7 @@ fn spawn_stream_reader<R: Read + Send + 'static>(
     on_event: Channel<TestMessage>,
     mut stream: R,
     output: Arc<Mutex<String>>,
-    is_stderr: bool,
+    _is_stderr: bool,
 ) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
         let mut buffer = [0_u8; 1024];
@@ -637,13 +637,6 @@ fn spawn_stream_reader<R: Read + Send + 'static>(
                 message: chunk.clone(),
                 stream: true,
             });
-            if is_stderr {
-                let _ = std::io::stderr().write_all(&buffer[..count]);
-                let _ = std::io::stderr().flush();
-            } else {
-                let _ = std::io::stdout().write_all(&buffer[..count]);
-                let _ = std::io::stdout().flush();
-            }
             if let Ok(mut output) = output.lock() {
                 output.push_str(&chunk);
             }
@@ -694,7 +687,6 @@ fn stop_requested(state: &tauri::State<'_, AppState>) -> bool {
 }
 
 fn emit_log(app: &tauri::AppHandle, message: &str) {
-    println!("{message}");
     let _ = app.emit(
         "test-log",
         LogEvent {
@@ -705,7 +697,6 @@ fn emit_log(app: &tauri::AppHandle, message: &str) {
 }
 
 fn emit_test_log(app: &tauri::AppHandle, on_event: &Channel<TestMessage>, message: &str) {
-    println!("{message}");
     let _ = on_event.send(TestMessage::Log {
         message: message.to_string(),
         stream: false,
