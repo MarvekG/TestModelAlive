@@ -348,7 +348,7 @@ async function saveEndpoint() {
 async function deleteSelectedEndpoint() {
   const endpoint = selectedEndpoint();
   if (!endpoint) return;
-  if (!confirm(`${tr("confirmDeleteEndpoint")}\n${endpoint.base_url}`)) return;
+  if (!(await confirmDeleteAction(tr("deleteEndpointTitle"), tr("confirmDeleteEndpoint"), endpoint.base_url))) return;
   try {
     await invoke("delete_endpoint", { endpointId: endpoint.id });
     log(`deleted endpoint: ${endpoint.base_url}`);
@@ -365,7 +365,7 @@ async function deleteCheckedEndpoints() {
     alert(tr("checkEndpointsFirst"));
     return;
   }
-  if (!confirm(tr("confirmDeleteChecked", { count: selected.length }))) return;
+  if (!(await confirmDeleteAction(tr("batchDeleteEndpointTitle"), tr("confirmDeleteChecked", { count: selected.length })))) return;
   try {
     for (const endpoint of selected) {
       await invoke("delete_endpoint", { endpointId: endpoint.id });
@@ -748,6 +748,45 @@ function confirmDuplicateEndpointAction(url: string): Promise<"add" | "overwrite
     document.addEventListener("keydown", onKeyDown);
     document.body.append(overlay);
     overlay.querySelector<HTMLButtonElement>('button[data-action="add"]')?.focus();
+  });
+}
+
+function confirmDeleteAction(title: string, message: string, detail = ""): Promise<boolean> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "choice-modal";
+    overlay.innerHTML = `
+      <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
+        <h2 id="delete-confirm-title">${escapeHtml(title)}</h2>
+        <p>${escapeHtml(message)}</p>
+        ${detail ? `<div class="choice-url" title="${escapeAttr(detail)}">${escapeHtml(detail)}</div>` : ""}
+        <div class="actions choice-actions">
+          <button data-action="confirm" class="danger">${escapeHtml(tr("delete"))}</button>
+          <button data-action="cancel" class="secondary">${escapeHtml(tr("cancel"))}</button>
+        </div>
+      </div>
+    `;
+
+    const finish = (confirmed: boolean) => {
+      document.removeEventListener("keydown", onKeyDown);
+      overlay.remove();
+      document.body.classList.toggle("modal-open", isTestPanelOpen());
+      resolve(confirmed);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") finish(false);
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) finish(false);
+    });
+    overlay.querySelector<HTMLButtonElement>('button[data-action="confirm"]')?.addEventListener("click", () => finish(true));
+    overlay.querySelector<HTMLButtonElement>('button[data-action="cancel"]')?.addEventListener("click", () => finish(false));
+
+    document.body.classList.add("modal-open");
+    document.addEventListener("keydown", onKeyDown);
+    document.body.append(overlay);
+    overlay.querySelector<HTMLButtonElement>('button[data-action="cancel"]')?.focus();
   });
 }
 
