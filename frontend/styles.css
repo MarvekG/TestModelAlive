@@ -171,6 +171,28 @@ tr.selected {
   opacity: 0.82;
 }
 
+.toast {
+  background: #172033;
+  border-radius: 999px;
+  box-shadow: 0 12px 32px rgb(23 32 51 / 22%);
+  color: white;
+  font-weight: 750;
+  left: 50%;
+  opacity: 0;
+  padding: 8px 16px;
+  pointer-events: none;
+  position: fixed;
+  top: 18px;
+  transform: translate(-50%, -12px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  z-index: 30;
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .workspace {
   display: grid;
   flex: 1;
