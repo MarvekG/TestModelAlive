@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
-use std::io::{BufRead, BufReader, Read};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -66,6 +66,7 @@ struct TestResult {
 #[derive(Clone, Debug, Serialize)]
 struct LogEvent {
     message: String,
+    stream: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -174,7 +175,7 @@ fn delete_endpoint(endpoint_id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn fetch_models(request: FetchModelsRequest) -> Result<Vec<String>, String> {
+fn fetch_models(app: tauri::AppHandle, request: FetchModelsRequest) -> Result<Vec<String>, String> {
     let endpoint = SavedEndpoint {
         id: String::new(),
         endpoint_type: request.endpoint_type,
@@ -182,7 +183,16 @@ fn fetch_models(request: FetchModelsRequest) -> Result<Vec<String>, String> {
         api_key: request.api_key.trim().to_string(),
         models: Vec::new(),
     };
-    fetch_endpoint_models(&endpoint, request.timeout)
+    emit_log(
+        &app,
+        &format!(
+            "fetching models from backend: type={} url={}",
+            endpoint.endpoint_type, endpoint.base_url
+        ),
+    );
+    let models = fetch_endpoint_models(&endpoint, request.timeout)?;
+    emit_log(&app, &format!("backend fetched {} models", models.len()));
+    Ok(models)
 }
 
 #[tauri::command]
@@ -456,9 +466,9 @@ fn run_command(
         .stderr
         .take()
         .ok_or_else(|| "failed to capture stderr".to_string())?;
-    let output_lines = Arc::new(Mutex::new(Vec::<String>::new()));
-    let stdout_reader = spawn_reader(app.clone(), stdout, output_lines.clone());
-    let stderr_reader = spawn_reader(app.clone(), stderr, output_lines.clone());
+    let output = Arc::new(Mutex::new(String::new()));
+    let stdout_reader = spawn_stream_reader(app.clone(), stdout, output.clone());
+    let stderr_reader = spawn_stream_reader(app.clone(), stderr, output.clone());
 
     let deadline = Instant::now() + Duration::from_secs(timeout);
     let status = loop {
@@ -484,10 +494,9 @@ fn run_command(
     let _ = stdout_reader.join();
     let _ = stderr_reader.join();
     *state.current_child.lock().map_err(|err| err.to_string())? = None;
-    let lines = output_lines.lock().map_err(|err| err.to_string())?.clone();
-    let output = lines.join("\n");
+    let output = output.lock().map_err(|err| err.to_string())?.clone();
     let detail = tail_chars(&output, 1000);
-    if status.success() && lines.iter().any(|line| line.trim() == EXPECTED_OUTPUT) {
+    if status.success() && output.lines().any(|line| line.trim() == EXPECTED_OUTPUT) {
         return Ok(("AVAILABLE".to_string(), detail));
     }
     if status.success() {
@@ -499,17 +508,23 @@ fn run_command(
     Ok(("UNAVAILABLE".to_string(), detail))
 }
 
-fn spawn_reader<R: Read + Send + 'static>(
+fn spawn_stream_reader<R: Read + Send + 'static>(
     app: tauri::AppHandle,
-    stream: R,
-    output_lines: Arc<Mutex<Vec<String>>>,
+    mut stream: R,
+    output: Arc<Mutex<String>>,
 ) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
-        let reader = BufReader::new(stream);
-        for line in reader.lines().map_while(Result::ok) {
-            emit_log(&app, &line);
-            if let Ok(mut lines) = output_lines.lock() {
-                lines.push(line);
+        let mut buffer = [0_u8; 1024];
+        loop {
+            let count = match stream.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(count) => count,
+                Err(_) => break,
+            };
+            let chunk = String::from_utf8_lossy(&buffer[..count]).to_string();
+            emit_stream_log(&app, &chunk);
+            if let Ok(mut output) = output.lock() {
+                output.push_str(&chunk);
             }
         }
     })
@@ -556,7 +571,23 @@ fn stop_requested(state: &tauri::State<'_, AppState>) -> bool {
 }
 
 fn emit_log(app: &tauri::AppHandle, message: &str) {
-    let _ = app.emit("test-log", LogEvent { message: message.to_string() });
+    let _ = app.emit(
+        "test-log",
+        LogEvent {
+            message: message.to_string(),
+            stream: false,
+        },
+    );
+}
+
+fn emit_stream_log(app: &tauri::AppHandle, message: &str) {
+    let _ = app.emit(
+        "test-log",
+        LogEvent {
+            message: message.to_string(),
+            stream: true,
+        },
+    );
 }
 
 fn tail_chars(value: &str, limit: usize) -> String {

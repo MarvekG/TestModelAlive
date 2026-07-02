@@ -33,7 +33,7 @@ let testEndpoint: SavedEndpoint | null = null;
 let testSelection = new Set<string>();
 let testResults: TestResult[] = [];
 let testRunning = false;
-let logs: string[] = [];
+let logChunks: string[] = [];
 
 app.innerHTML = `
   <main class="shell">
@@ -195,11 +195,14 @@ bind("test-invert", "click", () => invertSelection(testSelection, testEndpoint?.
 bind("start-test", "click", runTests);
 bind("stop-test", "click", stopTests);
 bind("clear-log", "click", () => {
-  logs = [];
+  logChunks = [];
   renderLogs();
 });
 
-void listen<{ message: string }>("test-log", (event) => log(event.payload.message));
+void listen<{ message: string; stream: boolean }>("test-log", (event) => {
+  if (event.payload.stream) appendStreamLog(event.payload.message);
+  else log(event.payload.message);
+});
 void listen<{ result: TestResult }>("test-result", (event) => {
   testResults.push(event.payload.result);
   renderResults();
@@ -408,7 +411,7 @@ function renderResults() {
 }
 
 function renderLogs() {
-  logOutput.textContent = logs.join("\n");
+  logOutput.textContent = logChunks.join("");
   logOutput.scrollTop = logOutput.scrollHeight;
 }
 
@@ -469,7 +472,12 @@ function invertSelection(selection: Set<string>, models: string[], render: () =>
 
 function log(message: string) {
   const stamp = new Date().toLocaleTimeString("zh-CN", { hour12: false });
-  logs.push(`${stamp} ${message}`);
+  logChunks.push(`${stamp} ${message}\n`);
+  renderLogs();
+}
+
+function appendStreamLog(message: string) {
+  logChunks.push(message);
   renderLogs();
 }
 
