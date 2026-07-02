@@ -21,24 +21,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: linux-appimage
+          - name: linux-x86_64
             os: ubuntu-22.04
             args: --bundles appimage
             rustTargets: ""
             uploadPlainBinary: true
-          - name: linux-arm64-appimage
+          - name: linux-arm64
             os: ubuntu-24.04-arm
             args: --bundles appimage
             rustTargets: ""
             uploadPlainBinary: true
-          - name: windows
+          - name: windows-x86_64
             os: windows-latest
-            args: --bundles nsis,msi
+            args: --bundles nsis
             rustTargets: ""
             uploadPlainBinary: true
           - name: windows-arm64
             os: windows-11-arm
-            args: --target aarch64-pc-windows-msvc --bundles nsis,msi
+            args: --target aarch64-pc-windows-msvc --bundles nsis
             rustTargets: aarch64-pc-windows-msvc
             uploadPlainBinary: true
           - name: macos-universal
