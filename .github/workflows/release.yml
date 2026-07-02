@@ -25,14 +25,27 @@ jobs:
             os: ubuntu-22.04
             args: --bundles appimage
             rustTargets: ""
+            uploadPlainBinary: false
+          - name: linux-arm64-appimage
+            os: ubuntu-24.04-arm
+            args: --bundles appimage
+            rustTargets: ""
+            uploadPlainBinary: false
           - name: windows
             os: windows-latest
-            args: ""
+            args: --no-bundle
             rustTargets: ""
+            uploadPlainBinary: true
+          - name: windows-arm64
+            os: windows-11-arm
+            args: --target aarch64-pc-windows-msvc --no-bundle
+            rustTargets: aarch64-pc-windows-msvc
+            uploadPlainBinary: true
           - name: macos-universal
             os: macos-latest
-            args: --target universal-apple-darwin
+            args: --target universal-apple-darwin --no-bundle
             rustTargets: x86_64-apple-darwin,aarch64-apple-darwin
+            uploadPlainBinary: true
 
     steps:
       - name: Checkout
@@ -89,6 +102,8 @@ jobs:
         with:
           releaseId: ${{ github.event.release.id }}
           tagName: ${{ github.event.release.tag_name }}
+          releaseAssetNamePattern: TestModelAlive-${{ matrix.name }}[ext]
+          uploadPlainBinary: ${{ matrix.uploadPlainBinary }}
           includeUpdaterJson: false
           args: ${{ matrix.args }}
 
@@ -99,5 +114,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ inputs.releaseTag }}
+          releaseAssetNamePattern: TestModelAlive-${{ matrix.name }}[ext]
+          uploadPlainBinary: ${{ matrix.uploadPlainBinary }}
           includeUpdaterJson: false
           args: ${{ matrix.args }}

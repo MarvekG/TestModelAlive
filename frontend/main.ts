@@ -63,6 +63,7 @@ app.innerHTML = `
       <span id="subtitle">${t("subtitle")}</span>
       <button id="language-toggle" class="secondary language-toggle">${language === "zh" ? "English" : "中文"}</button>
     </header>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <section class="workspace">
       <div class="card form-card">
@@ -233,6 +234,8 @@ const testLogOutput = byId<HTMLPreElement>("test-log-output");
 const testSettingsPanel = byId<HTMLElement>("test-settings-panel");
 const successKeywordInput = byId<HTMLInputElement>("success-keyword");
 const testPromptInput = byId<HTMLTextAreaElement>("test-prompt");
+const toast = byId<HTMLDivElement>("toast");
+let toastTimer: number | undefined;
 
 bind("fetch-models", "click", fetchModels);
 bind("language-toggle", "click", () => {
@@ -658,12 +661,14 @@ async function copyFromSelected(labelText: string, getter: (endpoint: SavedEndpo
   const endpoint = selectedEndpoint();
   if (!endpoint) return;
   await navigator.clipboard.writeText(getter(endpoint));
+  showToast(tr("copied", { label: labelText }));
   log(`copied ${labelText}: ${labelText === "URL" ? endpoint.base_url : endpoint.base_url}`);
 }
 
 async function copyFromTest(labelText: string, getter: (endpoint: SavedEndpoint) => string) {
   if (!testEndpoint) return;
   await navigator.clipboard.writeText(getter(testEndpoint));
+  showToast(tr("copied", { label: labelText }));
   testLog(`copied ${labelText}`);
 }
 
@@ -704,6 +709,15 @@ function testLog(message: string) {
   const stamp = new Date().toLocaleTimeString("zh-CN", { hour12: false });
   testLogChunks.push(`${stamp} ${message}\n`);
   renderTestLogs();
+}
+
+function showToast(message: string) {
+  toast.textContent = message;
+  toast.classList.add("visible");
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    toast.classList.remove("visible");
+  }, 1600);
 }
 
 function isTestPanelOpen() {
