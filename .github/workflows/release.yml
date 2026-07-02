@@ -33,17 +33,17 @@ jobs:
             uploadPlainBinary: true
           - name: windows
             os: windows-latest
-            args: --no-bundle
+            args: --bundles nsis,msi
             rustTargets: ""
             uploadPlainBinary: true
           - name: windows-arm64
             os: windows-11-arm
-            args: --target aarch64-pc-windows-msvc --no-bundle
+            args: --target aarch64-pc-windows-msvc --bundles nsis,msi
             rustTargets: aarch64-pc-windows-msvc
             uploadPlainBinary: true
           - name: macos-universal
             os: macos-latest
-            args: --target universal-apple-darwin --no-bundle
+            args: --target universal-apple-darwin --bundles app,dmg
             rustTargets: x86_64-apple-darwin,aarch64-apple-darwin
             uploadPlainBinary: true
 
