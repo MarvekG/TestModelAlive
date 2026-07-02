@@ -35,17 +35,20 @@ let endpoints: SavedEndpoint[] = [];
 let fetchedModels: string[] = [];
 let fetchedSelection = new Set<string>();
 let selectedEndpointId = "";
+let checkedEndpointIds = new Set<string>();
 let testEndpoint: SavedEndpoint | null = null;
 let testSelection = new Set<string>();
 let testResults: TestResult[] = [];
 let testRunning = false;
 let testLogChunks: string[] = [];
+let testPrompt = "You must output exactly OKK and nothing else. Do not explain. Do not add punctuation.";
+let successKeyword = "OKK";
 
 app.innerHTML = `
   <main class="shell">
     <header class="app-bar">
-      <h1>TSA</h1>
-      <span>端点管理 / 模型拉取 / CLI 测试</span>
+      <h1>TestModelAlive</h1>
+      <span>端点管理 / CLI 测试</span>
     </header>
 
     <section class="workspace">
@@ -83,7 +86,7 @@ app.innerHTML = `
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>类型</th><th>URL</th><th>SK</th><th>模型数</th></tr>
+              <tr><th class="check-column">选</th><th>类型</th><th>URL</th><th>SK</th><th>模型数</th></tr>
             </thead>
             <tbody id="endpoint-rows"></tbody>
           </table>
@@ -91,9 +94,12 @@ app.innerHTML = `
         <div class="actions wrap">
           <button id="open-test">测试</button>
           <button id="delete-endpoint" class="danger">删除</button>
+          <button id="delete-checked" class="danger">批量删除</button>
           <button id="load-endpoint" class="secondary">加载</button>
           <button id="copy-url" class="secondary">复制 URL</button>
           <button id="copy-key" class="secondary">复制 KEY</button>
+          <button id="check-endpoints-all" class="secondary">全选</button>
+          <button id="check-endpoints-none" class="secondary">全不选</button>
         </div>
       </div>
 
@@ -133,6 +139,7 @@ app.innerHTML = `
           </label>
           <button id="start-test">开始测试</button>
           <button id="stop-test" class="danger" disabled>停止</button>
+          <button id="open-test-settings" class="secondary">测试设置</button>
           <span id="test-status" class="test-status">未开始</span>
         </div>
         <div class="test-layout">
@@ -167,6 +174,26 @@ app.innerHTML = `
         </div>
       </div>
     </section>
+
+    <section id="test-settings-panel" class="settings-modal hidden" aria-modal="true" role="dialog">
+      <div class="settings-dialog">
+        <div class="modal-title">
+          <h2>测试设置</h2>
+          <button id="close-test-settings" class="secondary">关闭</button>
+        </div>
+        <p class="settings-hint">成功关键词必须明确写进提示词里，要求模型输出它；测试会在命令输出中匹配这个关键词。</p>
+        <label>匹配成功关键词
+          <input id="success-keyword" placeholder="OKK" />
+        </label>
+        <label>测试提示词
+          <textarea id="test-prompt" rows="6"></textarea>
+        </label>
+        <div class="actions">
+          <button id="save-test-settings">保存设置</button>
+          <button id="reset-test-settings" class="secondary">恢复默认</button>
+        </div>
+      </div>
+    </section>
   </main>
 `;
 
@@ -189,6 +216,9 @@ const startTest = byId<HTMLButtonElement>("start-test");
 const stopTest = byId<HTMLButtonElement>("stop-test");
 const testStatus = byId<HTMLSpanElement>("test-status");
 const testLogOutput = byId<HTMLPreElement>("test-log-output");
+const testSettingsPanel = byId<HTMLElement>("test-settings-panel");
+const successKeywordInput = byId<HTMLInputElement>("success-keyword");
+const testPromptInput = byId<HTMLTextAreaElement>("test-prompt");
 
 bind("fetch-models", "click", fetchModels);
 bind("save-endpoint", "click", saveEndpoint);
@@ -196,9 +226,12 @@ bind("clear-input", "click", clearInput);
 bind("reload-endpoints", "click", loadEndpoints);
 bind("open-test", "click", openTestPanel);
 bind("delete-endpoint", "click", deleteSelectedEndpoint);
+bind("delete-checked", "click", deleteCheckedEndpoints);
 bind("load-endpoint", "click", loadSelectedEndpointToForm);
 bind("copy-url", "click", () => copyFromSelected("URL", (endpoint) => endpoint.base_url));
 bind("copy-key", "click", () => copyFromSelected("KEY", (endpoint) => endpoint.api_key));
+bind("check-endpoints-all", "click", () => setEndpointChecks(true));
+bind("check-endpoints-none", "click", () => setEndpointChecks(false));
 bind("models-all", "click", () => setSelection(fetchedSelection, fetchedModels, true, renderFetchedModels));
 bind("models-none", "click", () => setSelection(fetchedSelection, fetchedModels, false, renderFetchedModels));
 bind("models-invert", "click", () => invertSelection(fetchedSelection, fetchedModels, renderFetchedModels));
@@ -210,6 +243,10 @@ bind("test-none", "click", () => setSelection(testSelection, testEndpoint?.model
 bind("test-invert", "click", () => invertSelection(testSelection, testEndpoint?.models ?? [], renderTestModels));
 bind("start-test", "click", runTests);
 bind("stop-test", "click", stopTests);
+bind("open-test-settings", "click", openTestSettings);
+bind("close-test-settings", "click", closeTestSettings);
+bind("save-test-settings", "click", saveTestSettings);
+bind("reset-test-settings", "click", resetTestSettings);
 bind("copy-test-log", "click", copyTestLog);
 bind("clear-test-log", "click", () => {
   testLogChunks = [];
@@ -221,6 +258,7 @@ void loadEndpoints();
 async function loadEndpoints() {
   try {
     endpoints = await invoke<SavedEndpoint[]>("load_endpoints");
+    checkedEndpointIds = new Set([...checkedEndpointIds].filter((id) => endpoints.some((endpoint) => endpoint.id === id)));
     renderEndpoints();
   } catch (error) {
     alertError("读取端点失败", error);
@@ -273,6 +311,26 @@ async function deleteSelectedEndpoint() {
     await loadEndpoints();
   } catch (error) {
     alertError("删除失败", error);
+  }
+}
+
+async function deleteCheckedEndpoints() {
+  const selected = endpoints.filter((endpoint) => checkedEndpointIds.has(endpoint.id));
+  if (selected.length === 0) {
+    alert("请先勾选要删除的端点。");
+    return;
+  }
+  if (!confirm(`确定删除已勾选的 ${selected.length} 个端点？`)) return;
+  try {
+    for (const endpoint of selected) {
+      await invoke("delete_endpoint", { endpointId: endpoint.id });
+      log(`deleted endpoint: ${endpoint.base_url}`);
+    }
+    checkedEndpointIds.clear();
+    if (selected.some((endpoint) => endpoint.id === selectedEndpointId)) selectedEndpointId = "";
+    await loadEndpoints();
+  } catch (error) {
+    alertError("批量删除失败", error);
   }
 }
 
@@ -350,6 +408,8 @@ async function runTests() {
         models,
         timeout: Number(testTimeout.value || 120),
         append_1m: append1m.checked,
+        prompt: testPrompt,
+        success_keyword: successKeyword,
       },
       onEvent,
     });
@@ -371,6 +431,42 @@ async function stopTests() {
   }
 }
 
+function openTestSettings() {
+  successKeywordInput.value = successKeyword;
+  testPromptInput.value = testPrompt;
+  testSettingsPanel.classList.remove("hidden");
+}
+
+function closeTestSettings() {
+  testSettingsPanel.classList.add("hidden");
+}
+
+function saveTestSettings() {
+  const keyword = successKeywordInput.value.trim();
+  const prompt = testPromptInput.value.trim();
+  if (!keyword) {
+    alert("请填写匹配成功关键词。");
+    return;
+  }
+  if (!prompt) {
+    alert("请填写测试提示词。");
+    return;
+  }
+  if (!prompt.includes(keyword)) {
+    alert("测试提示词必须包含匹配成功关键词，并要求模型输出它。");
+    return;
+  }
+  successKeyword = keyword;
+  testPrompt = prompt;
+  testLog(`saved test settings: success keyword=${successKeyword}`);
+  closeTestSettings();
+}
+
+function resetTestSettings() {
+  successKeywordInput.value = "OKK";
+  testPromptInput.value = "You must output exactly OKK and nothing else. Do not explain. Do not add punctuation.";
+}
+
 function renderEndpoints() {
   endpointRows.innerHTML = "";
   for (const endpoint of endpoints) {
@@ -378,11 +474,30 @@ function renderEndpoints() {
     row.dataset.id = endpoint.id;
     row.classList.toggle("selected", endpoint.id === selectedEndpointId);
     row.innerHTML = `
+      <td class="check-column"></td>
       <td>${label(endpoint.type)}</td>
       <td title="${escapeAttr(endpoint.base_url)}">${escapeHtml(endpoint.base_url)}</td>
       <td>${escapeHtml(maskKey(endpoint.api_key))}</td>
       <td>${endpoint.models.length}</td>
     `;
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = checkedEndpointIds.has(endpoint.id);
+    const checkCell = row.querySelector<HTMLTableCellElement>("td");
+    checkCell?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (event.target !== checkbox) {
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event("change"));
+      }
+    });
+    checkCell?.addEventListener("dblclick", (event) => event.stopPropagation());
+    checkbox.addEventListener("click", (event) => event.stopPropagation());
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) checkedEndpointIds.add(endpoint.id);
+      else checkedEndpointIds.delete(endpoint.id);
+    });
+    checkCell?.append(checkbox);
     row.addEventListener("click", () => {
       selectedEndpointId = endpoint.id;
       renderEndpoints();
@@ -390,6 +505,14 @@ function renderEndpoints() {
     row.addEventListener("dblclick", openTestPanel);
     endpointRows.append(row);
   }
+}
+
+function setEndpointChecks(checked: boolean) {
+  checkedEndpointIds.clear();
+  if (checked) {
+    for (const endpoint of endpoints) checkedEndpointIds.add(endpoint.id);
+  }
+  renderEndpoints();
 }
 
 function renderFetchedModels() {

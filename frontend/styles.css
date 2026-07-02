@@ -12,12 +12,13 @@
 html,
 body,
 #app {
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
 body {
   margin: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 body.modal-open {
@@ -58,7 +59,8 @@ button.danger {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   border: 1px solid #d6deeb;
   border-radius: 8px;
@@ -70,9 +72,15 @@ select {
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: #2454d6;
   box-shadow: 0 0 0 3px rgb(36 84 214 / 12%);
+}
+
+textarea {
+  min-height: 120px;
+  resize: vertical;
 }
 
 label {
@@ -101,9 +109,20 @@ th {
 }
 
 td:nth-child(1),
-td:nth-child(3),
-td:nth-child(4) {
+td:nth-child(2),
+td:nth-child(4),
+td:nth-child(5) {
   white-space: nowrap;
+}
+
+.check-column {
+  text-align: center;
+  width: 42px;
+}
+
+.check-column input {
+  margin: 0;
+  width: auto;
 }
 
 tbody tr {
@@ -118,9 +137,11 @@ tr.selected {
 }
 
 .shell {
-  max-width: 1280px;
-  min-height: 100vh;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100vh;
+  width: 100vw;
   padding: 10px;
 }
 
@@ -130,8 +151,8 @@ tr.selected {
   border-radius: 14px;
   color: white;
   display: flex;
+  flex: 0 0 auto;
   gap: 12px;
-  margin-bottom: 10px;
   padding: 10px 14px;
 }
 
@@ -147,9 +168,12 @@ tr.selected {
 
 .workspace {
   display: grid;
+  flex: 1;
   gap: 10px;
-  grid-template-columns: 330px minmax(420px, 1fr);
-  grid-template-rows: minmax(520px, auto) auto;
+  grid-template-columns: minmax(320px, 28vw) minmax(520px, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .card {
@@ -196,20 +220,23 @@ tr.selected {
   display: grid;
   gap: 9px;
   grid-column: 1;
-  min-height: 520px;
+  min-height: 0;
+  overflow: auto;
 }
 
 .table-card {
   display: flex;
   flex-direction: column;
   grid-column: 2;
-  min-height: 520px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .table-card .table-wrap {
   flex: 1;
-  max-height: none;
+  max-height: 100%;
   min-height: 0;
+  overflow: auto;
 }
 
 .table-card .actions.wrap {
@@ -218,8 +245,17 @@ tr.selected {
 }
 
 .models-card {
+  display: flex;
+  flex-direction: column;
   grid-column: 1 / -1;
-  margin-top: 18px;
+  max-height: 220px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.models-card .check-list {
+  flex: 1;
+  min-height: 0;
 }
 
 .actions {
@@ -289,7 +325,8 @@ tr.selected {
   white-space: nowrap;
 }
 
-.test-modal {
+.test-modal,
+.settings-modal {
   align-items: center;
   background: rgb(8 17 35 / 55%);
   display: flex;
@@ -298,6 +335,10 @@ tr.selected {
   padding: 18px;
   position: fixed;
   z-index: 10;
+}
+
+.settings-modal {
+  z-index: 20;
 }
 
 .test-dialog {
@@ -313,6 +354,28 @@ tr.selected {
   overflow: auto;
   padding: 12px;
   width: min(1080px, 100%);
+}
+
+.settings-dialog {
+  background: #f8fafc;
+  border: 1px solid #dfe6f1;
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 28%);
+  display: grid;
+  gap: 12px;
+  max-width: 680px;
+  padding: 14px;
+  width: min(680px, 100%);
+}
+
+.settings-hint {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  color: #9a3412;
+  font-weight: 700;
+  margin: 0;
+  padding: 10px;
 }
 
 .test-endpoint-box {
@@ -485,6 +548,19 @@ tr.selected {
 }
 
 @media (max-width: 900px) {
+  body {
+    overflow: auto;
+  }
+
+  .shell {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .workspace {
+    overflow: visible;
+  }
+
   .workspace,
   .test-layout {
     grid-template-columns: 1fr;

@@ -10,8 +10,6 @@ use tauri::{ipc::Channel, Emitter, Manager};
 use time::OffsetDateTime;
 
 const DATA_FILE: &str = "tsa_endpoints.json";
-const EXPECTED_OUTPUT: &str = "OKK";
-const PROMPT: &str = "You must output exactly OKK and nothing else. Do not explain. Do not add punctuation.";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct SavedEndpoint {
@@ -53,6 +51,8 @@ struct TestModelsRequest {
     models: Vec<String>,
     timeout: u64,
     append_1m: bool,
+    prompt: String,
+    success_keyword: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -231,7 +231,16 @@ fn test_models(
                 break;
             }
             emit_test_log(&app_handle, &on_event, &format!("testing model: {model}"));
-            let result = match run_model_test(&app_handle, &on_event, &state, &request.endpoint, &model, request.timeout) {
+            let result = match run_model_test(
+                &app_handle,
+                &on_event,
+                &state,
+                &request.endpoint,
+                &model,
+                request.timeout,
+                &request.prompt,
+                &request.success_keyword,
+            ) {
                 Ok(result) => result,
                 Err(err) => TestResult {
                     model: model.clone(),
@@ -353,14 +362,16 @@ fn run_model_test(
     endpoint: &SavedEndpoint,
     model: &str,
     timeout: u64,
+    prompt: &str,
+    success_keyword: &str,
 ) -> Result<TestResult, String> {
     let start = Instant::now();
     let (command, guards) = if endpoint.endpoint_type == "codex" {
-        prepare_codex(endpoint, model)?
+        prepare_codex(endpoint, model, prompt)?
     } else {
-        prepare_claude(endpoint, model)?
+        prepare_claude(endpoint, model, prompt)?
     };
-    let (status, detail) = run_command(app, on_event, state, command, timeout)?;
+    let (status, detail) = run_command(app, on_event, state, command, timeout, success_keyword)?;
     drop(guards);
     Ok(TestResult {
         model: model.to_string(),
@@ -370,7 +381,7 @@ fn run_model_test(
     })
 }
 
-fn prepare_codex(endpoint: &SavedEndpoint, model: &str) -> Result<(Vec<String>, Vec<RestorableFile>), String> {
+fn prepare_codex(endpoint: &SavedEndpoint, model: &str, prompt: &str) -> Result<(Vec<String>, Vec<RestorableFile>), String> {
     let codex_dir = home_dir()?.join(".codex");
     fs::create_dir_all(&codex_dir).map_err(|err| err.to_string())?;
     let auth_path = codex_dir.join("auth.json");
@@ -399,13 +410,13 @@ fn prepare_codex(endpoint: &SavedEndpoint, model: &str) -> Result<(Vec<String>, 
             "codex".to_string(),
             "exec".to_string(),
             "--skip-git-repo-check".to_string(),
-            PROMPT.to_string(),
+            prompt.to_string(),
         ],
         guards,
     ))
 }
 
-fn prepare_claude(endpoint: &SavedEndpoint, model: &str) -> Result<(Vec<String>, Vec<RestorableFile>), String> {
+fn prepare_claude(endpoint: &SavedEndpoint, model: &str, prompt: &str) -> Result<(Vec<String>, Vec<RestorableFile>), String> {
     let settings_path = PathBuf::from("claude-settings.json");
     let mut guard = RestorableFile::new(&settings_path);
     guard.begin()?;
@@ -430,7 +441,7 @@ fn prepare_claude(endpoint: &SavedEndpoint, model: &str) -> Result<(Vec<String>,
             "--model".to_string(),
             model.to_string(),
             "-p".to_string(),
-            PROMPT.to_string(),
+            prompt.to_string(),
         ],
         vec![guard],
     ))
@@ -442,6 +453,7 @@ fn run_command(
     state: &tauri::State<'_, AppState>,
     command: Vec<String>,
     timeout: u64,
+    success_keyword: &str,
 ) -> Result<(String, String), String> {
     emit_test_log(app, on_event, &format!("running: {}", shell_join(&command)));
     let mut process = Command::new(&command[0]);
@@ -504,13 +516,13 @@ fn run_command(
     *state.current_child.lock().map_err(|err| err.to_string())? = None;
     let output = output.lock().map_err(|err| err.to_string())?.clone();
     let detail = tail_chars(&output, 1000);
-    if status.success() && output.lines().any(|line| line.trim() == EXPECTED_OUTPUT) {
+    if status.success() && output.contains(success_keyword) {
         return Ok(("AVAILABLE".to_string(), detail));
     }
     if status.success() {
         return Ok((
             "UNAVAILABLE".to_string(),
-            format!("command exited 0 but did not return expected '{EXPECTED_OUTPUT}'\n{detail}"),
+            format!("command exited 0 but did not return expected '{success_keyword}'\n{detail}"),
         ));
     }
     Ok(("UNAVAILABLE".to_string(), detail))
