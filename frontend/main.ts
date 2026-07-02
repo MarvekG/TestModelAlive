@@ -1,4 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { type Language, translate } from "./i18n";
 import "./styles.css";
 
 type EndpointType = "codex" | "claude";
@@ -25,6 +26,11 @@ interface TestMessage {
   result?: TestResult;
 }
 
+interface TestSettings {
+  prompt: string;
+  success_keyword: string;
+}
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -43,76 +49,83 @@ let testRunning = false;
 let testLogChunks: string[] = [];
 let testPrompt = "You must output exactly OKK and nothing else. Do not explain. Do not add punctuation.";
 let successKeyword = "OKK";
+let language: Language = (localStorage.getItem("language") === "en" ? "en" : "zh");
+document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+
+function t(key: string, values: Record<string, string | number> = {}) {
+  return translate(language, key, values);
+}
 
 app.innerHTML = `
   <main class="shell">
     <header class="app-bar">
       <h1>TestModelAlive</h1>
-      <span>端点管理 / CLI 测试</span>
+      <span id="subtitle">${t("subtitle")}</span>
+      <button id="language-toggle" class="secondary language-toggle">${language === "zh" ? "English" : "中文"}</button>
     </header>
 
     <section class="workspace">
       <div class="card form-card">
         <div class="card-title">
-          <h2>添加端点</h2>
-          <button id="clear-input" class="secondary">清空</button>
+          <h2 id="add-endpoint-title">${t("addEndpoint")}</h2>
+          <button id="clear-input" class="secondary">${t("clear")}</button>
         </div>
-        <label>类型
+        <label><span id="endpoint-type-label">${t("type")}</span>
           <select id="endpoint-type">
             <option value="codex">codex</option>
             <option value="claude">claude</option>
           </select>
         </label>
-        <label>URL
+        <label><span id="base-url-label">${t("url")}</span>
           <input id="base-url" placeholder="https://example.com/v1" />
         </label>
-        <label>SK
+        <label><span id="api-key-label">${t("sk")}</span>
           <input id="api-key" type="password" placeholder="sk-..." />
         </label>
-        <label>拉取超时
+        <label><span id="fetch-timeout-label">${t("fetchTimeout")}</span>
           <input id="fetch-timeout" type="number" min="1" max="3600" value="30" />
         </label>
         <div class="actions">
-          <button id="fetch-models">拉取模型</button>
-          <button id="save-endpoint">保存端点</button>
+          <button id="fetch-models">${t("fetchModels")}</button>
+          <button id="save-endpoint">${t("saveEndpoint")}</button>
         </div>
       </div>
 
       <div class="card table-card">
         <div class="card-title">
-          <h2>已保存端点</h2>
-          <button id="reload-endpoints" class="secondary">刷新</button>
+          <h2 id="saved-endpoints-title">${t("savedEndpoints")}</h2>
+          <button id="reload-endpoints" class="secondary">${t("refresh")}</button>
         </div>
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th class="check-column">选</th><th>类型</th><th>URL</th><th>SK</th><th>模型数</th></tr>
+              <tr><th id="endpoint-check-header" class="check-column">${t("select")}</th><th id="endpoint-type-header">${t("type")}</th><th>URL</th><th id="endpoint-key-header">${t("sk")}</th><th id="endpoint-model-count-header">${t("modelCount")}</th></tr>
             </thead>
             <tbody id="endpoint-rows"></tbody>
           </table>
         </div>
         <div class="actions wrap">
-          <button id="open-test">测试</button>
-          <button id="delete-endpoint" class="danger">删除</button>
-          <button id="delete-checked" class="danger">批量删除</button>
-          <button id="load-endpoint" class="secondary">加载</button>
-          <button id="copy-url" class="secondary">复制 URL</button>
-          <button id="copy-key" class="secondary">复制 KEY</button>
-          <button id="check-endpoints-all" class="secondary">全选</button>
-          <button id="check-endpoints-none" class="secondary">全不选</button>
+          <button id="open-test">${t("test")}</button>
+          <button id="delete-endpoint" class="danger">${t("delete")}</button>
+          <button id="delete-checked" class="danger">${t("batchDelete")}</button>
+          <button id="load-endpoint" class="secondary">${t("load")}</button>
+          <button id="copy-url" class="secondary">${t("copyUrl")}</button>
+          <button id="copy-key" class="secondary">${t("copyKey")}</button>
+          <button id="check-endpoints-all" class="secondary">${t("selectAll")}</button>
+          <button id="check-endpoints-none" class="secondary">${t("selectNone")}</button>
         </div>
       </div>
 
       <div class="card models-card">
         <div class="card-title">
-          <h2>已拉取模型</h2>
+          <h2 id="fetched-models-title">${t("fetchedModels")}</h2>
           <div class="actions compact">
-            <button id="models-all" class="secondary">全选</button>
-            <button id="models-none" class="secondary">全不选</button>
-            <button id="models-invert" class="secondary">反选</button>
+            <button id="models-all" class="secondary">${t("selectAll")}</button>
+            <button id="models-none" class="secondary">${t("selectNone")}</button>
+            <button id="models-invert" class="secondary">${t("invert")}</button>
           </div>
         </div>
-        <div id="fetched-models" class="check-list empty">暂无模型</div>
+        <div id="fetched-models" class="check-list empty">${t("noModels")}</div>
       </div>
     </section>
 
@@ -120,43 +133,43 @@ app.innerHTML = `
       <div class="test-dialog">
         <div class="modal-title">
           <div>
-            <h2>测试模型</h2>
+            <h2 id="test-models-title">${t("testModels")}</h2>
           </div>
-          <button id="close-test" class="secondary">关闭</button>
+          <button id="close-test" class="secondary">${t("close")}</button>
         </div>
         <div class="test-endpoint-box">
-          <div><span>类型</span><strong id="test-type"></strong></div>
-          <div><span>URL</span><strong id="test-url"></strong><button id="test-copy-url" class="secondary">复制 URL</button></div>
-          <div><span>SK</span><strong id="test-key"></strong><button id="test-copy-key" class="secondary">复制 SK</button></div>
+          <div><span id="test-type-label">${t("type")}</span><strong id="test-type"></strong></div>
+          <div><span>URL</span><strong id="test-url"></strong><button id="test-copy-url" class="secondary">${t("copyUrl")}</button></div>
+          <div><span>${t("sk")}</span><strong id="test-key"></strong><button id="test-copy-key" class="secondary">${t("copyKey")}</button></div>
         </div>
         <div class="test-controls-bar">
-          <label>超时时间
+          <label><span id="test-timeout-label">${t("timeout")}</span>
             <input id="test-timeout" type="number" min="1" max="3600" value="120" />
           </label>
           <label id="append-1m-label" class="inline-check">
             <input id="append-1m" type="checkbox" />
-            模型后追加 1M 上下文 [1m]
+            ${t("append1m")}
           </label>
-          <button id="start-test">开始测试</button>
-          <button id="stop-test" class="danger" disabled>停止</button>
-          <button id="open-test-settings" class="secondary">测试设置</button>
-          <span id="test-status" class="test-status">未开始</span>
+          <button id="start-test">${t("startTest")}</button>
+          <button id="stop-test" class="danger" disabled>${t("stop")}</button>
+          <button id="open-test-settings" class="secondary">${t("testSettings")}</button>
+          <span id="test-status" class="test-status">${t("notStarted")}</span>
         </div>
         <div class="test-layout">
           <div class="test-box test-left">
-            <h3>选择模型</h3>
+          <h3 id="choose-models-title">${t("chooseModels")}</h3>
             <div class="actions compact">
-              <button id="test-all" class="secondary">全选</button>
-              <button id="test-none" class="secondary">全不选</button>
-              <button id="test-invert" class="secondary">反选</button>
+              <button id="test-all" class="secondary">${t("selectAll")}</button>
+              <button id="test-none" class="secondary">${t("selectNone")}</button>
+              <button id="test-invert" class="secondary">${t("invert")}</button>
             </div>
             <div id="test-models" class="check-list test-models"></div>
           </div>
           <div class="test-box test-right">
-            <h3>结果</h3>
+            <h3 id="results-title">${t("results")}</h3>
             <div class="table-wrap results">
               <table>
-                <thead><tr><th>模型</th><th>状态</th><th>耗时</th></tr></thead>
+                <thead><tr><th id="result-model-header">${t("model")}</th><th id="result-status-header">${t("status")}</th><th id="result-elapsed-header">${t("elapsed")}</th></tr></thead>
                 <tbody id="result-rows"></tbody>
               </table>
             </div>
@@ -164,10 +177,10 @@ app.innerHTML = `
         </div>
         <div class="test-box test-log-box">
           <div class="test-log-title">
-            <h3>日志</h3>
+            <h3 id="log-title">${t("log")}</h3>
             <div class="actions compact">
-              <button id="copy-test-log" class="secondary">复制</button>
-              <button id="clear-test-log" class="secondary">清空</button>
+              <button id="copy-test-log" class="secondary">${t("copy")}</button>
+              <button id="clear-test-log" class="secondary">${t("clear")}</button>
             </div>
           </div>
           <pre id="test-log-output"></pre>
@@ -178,19 +191,19 @@ app.innerHTML = `
     <section id="test-settings-panel" class="settings-modal hidden" aria-modal="true" role="dialog">
       <div class="settings-dialog">
         <div class="modal-title">
-          <h2>测试设置</h2>
-          <button id="close-test-settings" class="secondary">关闭</button>
+          <h2 id="settings-title">${t("testSettings")}</h2>
+          <button id="close-test-settings" class="secondary">${t("close")}</button>
         </div>
-        <p class="settings-hint">成功关键词必须明确写进提示词里，要求模型输出它；测试会在命令输出中匹配这个关键词。</p>
-        <label>匹配成功关键词
+        <p id="settings-hint" class="settings-hint">${t("successHint")}</p>
+        <label><span id="success-keyword-label">${t("successKeyword")}</span>
           <input id="success-keyword" placeholder="OKK" />
         </label>
-        <label>测试提示词
+        <label><span id="test-prompt-label">${t("testPrompt")}</span>
           <textarea id="test-prompt" rows="6"></textarea>
         </label>
         <div class="actions">
-          <button id="save-test-settings">保存设置</button>
-          <button id="reset-test-settings" class="secondary">恢复默认</button>
+          <button id="save-test-settings">${t("saveSettings")}</button>
+          <button id="reset-test-settings" class="secondary">${t("resetDefault")}</button>
         </div>
       </div>
     </section>
@@ -198,6 +211,7 @@ app.innerHTML = `
 `;
 
 const endpointType = byId<HTMLSelectElement>("endpoint-type");
+const languageToggle = byId<HTMLButtonElement>("language-toggle");
 const baseUrl = byId<HTMLInputElement>("base-url");
 const apiKey = byId<HTMLInputElement>("api-key");
 const fetchTimeout = byId<HTMLInputElement>("fetch-timeout");
@@ -221,6 +235,10 @@ const successKeywordInput = byId<HTMLInputElement>("success-keyword");
 const testPromptInput = byId<HTMLTextAreaElement>("test-prompt");
 
 bind("fetch-models", "click", fetchModels);
+bind("language-toggle", "click", () => {
+  localStorage.setItem("language", language === "zh" ? "en" : "zh");
+  window.location.reload();
+});
 bind("save-endpoint", "click", saveEndpoint);
 bind("clear-input", "click", clearInput);
 bind("reload-endpoints", "click", loadEndpoints);
@@ -254,6 +272,7 @@ bind("clear-test-log", "click", () => {
 });
 
 void loadEndpoints();
+void loadTestSettings();
 
 async function loadEndpoints() {
   try {
@@ -261,7 +280,17 @@ async function loadEndpoints() {
     checkedEndpointIds = new Set([...checkedEndpointIds].filter((id) => endpoints.some((endpoint) => endpoint.id === id)));
     renderEndpoints();
   } catch (error) {
-    alertError("读取端点失败", error);
+    alertError(tr("readEndpointsFailed"), error);
+  }
+}
+
+async function loadTestSettings() {
+  try {
+    const settings = await invoke<TestSettings>("load_test_settings");
+    testPrompt = settings.prompt;
+    successKeyword = settings.success_keyword;
+  } catch (error) {
+    alertError(tr("readSettingsFailed"), error);
   }
 }
 
@@ -276,7 +305,7 @@ async function fetchModels() {
     renderFetchedModels();
     log(`fetched ${fetchedModels.length} models`);
   } catch (error) {
-    alertError("拉取模型失败", error);
+    alertError(tr("fetchFailed"), error);
     log(`fetch failed: ${String(error)}`);
   } finally {
     setBusy("fetch-models", false);
@@ -288,7 +317,7 @@ async function saveEndpoint() {
   if (!request) return;
   const models = fetchedModels.filter((model) => fetchedSelection.has(model));
   if (models.length === 0) {
-    alert("请先拉取模型并选择至少一个模型。");
+    alert(tr("selectAtLeastOneFetchedModel"));
     return;
   }
   try {
@@ -296,31 +325,31 @@ async function saveEndpoint() {
     log(`saved endpoint: type=${request.type} url=${request.base_url} models=${models.length}`);
     await loadEndpoints();
   } catch (error) {
-    alertError("保存失败", error);
+    alertError(tr("saveFailed"), error);
   }
 }
 
 async function deleteSelectedEndpoint() {
   const endpoint = selectedEndpoint();
   if (!endpoint) return;
-  if (!confirm(`确定删除端点？\n${endpoint.base_url}`)) return;
+  if (!confirm(`${tr("confirmDeleteEndpoint")}\n${endpoint.base_url}`)) return;
   try {
     await invoke("delete_endpoint", { endpointId: endpoint.id });
     log(`deleted endpoint: ${endpoint.base_url}`);
     selectedEndpointId = "";
     await loadEndpoints();
   } catch (error) {
-    alertError("删除失败", error);
+    alertError(tr("deleteFailed"), error);
   }
 }
 
 async function deleteCheckedEndpoints() {
   const selected = endpoints.filter((endpoint) => checkedEndpointIds.has(endpoint.id));
   if (selected.length === 0) {
-    alert("请先勾选要删除的端点。");
+    alert(tr("checkEndpointsFirst"));
     return;
   }
-  if (!confirm(`确定删除已勾选的 ${selected.length} 个端点？`)) return;
+  if (!confirm(tr("confirmDeleteChecked", { count: selected.length }))) return;
   try {
     for (const endpoint of selected) {
       await invoke("delete_endpoint", { endpointId: endpoint.id });
@@ -330,7 +359,7 @@ async function deleteCheckedEndpoints() {
     if (selected.some((endpoint) => endpoint.id === selectedEndpointId)) selectedEndpointId = "";
     await loadEndpoints();
   } catch (error) {
-    alertError("批量删除失败", error);
+    alertError(tr("batchDeleteFailed"), error);
   }
 }
 
@@ -359,7 +388,7 @@ function openTestPanel() {
   testType.textContent = label(endpoint.type);
   testUrl.textContent = endpoint.base_url;
   testKey.textContent = maskKey(endpoint.api_key);
-  testStatus.textContent = "未开始";
+  testStatus.textContent = tr("notStarted");
   append1mLabel.classList.toggle("hidden", endpoint.type !== "claude");
   renderTestModels();
   renderResults();
@@ -367,7 +396,7 @@ function openTestPanel() {
 }
 
 function closeTestPanel() {
-  if (testRunning && !confirm("测试仍在运行，是否停止并关闭？")) return;
+  if (testRunning && !confirm(tr("testStillRunning"))) return;
   if (testRunning) void stopTests();
   testPanel.classList.add("hidden");
   document.body.classList.remove("modal-open");
@@ -377,7 +406,7 @@ async function runTests() {
   if (!testEndpoint) return;
   const models = testEndpoint.models.filter((model) => testSelection.has(model));
   if (models.length === 0) {
-    alert("请选择至少一个模型。");
+    alert(tr("selectAtLeastOneModel"));
     return;
   }
   testResults = [];
@@ -385,7 +414,7 @@ async function runTests() {
   testRunning = true;
   startTest.disabled = true;
   stopTest.disabled = false;
-  testStatus.textContent = `运行中：${models.length} 个模型`;
+  testStatus.textContent = `${tr("running")}: ${models.length}`;
   log(`starting CLI test request: type=${testEndpoint.type} url=${testEndpoint.base_url} models=${models.length} timeout=${Number(testTimeout.value || 120)}s`);
   const onEvent = new Channel<TestMessage>((message) => {
     if (message.kind === "log" && message.message !== undefined) {
@@ -398,7 +427,7 @@ async function runTests() {
       testRunning = false;
       startTest.disabled = false;
       stopTest.disabled = true;
-      testStatus.textContent = "已结束";
+      testStatus.textContent = tr("ended");
     }
   });
   try {
@@ -417,8 +446,8 @@ async function runTests() {
     testRunning = false;
     startTest.disabled = false;
     stopTest.disabled = true;
-    testStatus.textContent = "启动失败";
-    alertError("启动测试失败", error);
+    testStatus.textContent = tr("launchFailed");
+    alertError(tr("startTestFailed"), error);
   }
 }
 
@@ -427,7 +456,7 @@ async function stopTests() {
     await invoke("stop_test");
     log("stopping test...");
   } catch (error) {
-    alertError("停止失败", error);
+    alertError(tr("stopFailed"), error);
   }
 }
 
@@ -441,25 +470,30 @@ function closeTestSettings() {
   testSettingsPanel.classList.add("hidden");
 }
 
-function saveTestSettings() {
+async function saveTestSettings() {
   const keyword = successKeywordInput.value.trim();
   const prompt = testPromptInput.value.trim();
   if (!keyword) {
-    alert("请填写匹配成功关键词。");
+    alert(tr("missingKeyword"));
     return;
   }
   if (!prompt) {
-    alert("请填写测试提示词。");
+    alert(tr("missingPrompt"));
     return;
   }
   if (!prompt.includes(keyword)) {
-    alert("测试提示词必须包含匹配成功关键词，并要求模型输出它。");
+    alert(tr("promptMustContainKeyword"));
     return;
   }
-  successKeyword = keyword;
-  testPrompt = prompt;
-  testLog(`saved test settings: success keyword=${successKeyword}`);
-  closeTestSettings();
+  try {
+    await invoke("save_test_settings", { settings: { prompt, success_keyword: keyword } });
+    successKeyword = keyword;
+    testPrompt = prompt;
+    testLog(`saved test settings: success keyword=${successKeyword}`);
+    closeTestSettings();
+  } catch (error) {
+    alertError(tr("saveSettingsFailed"), error);
+  }
 }
 
 function resetTestSettings() {
@@ -527,7 +561,7 @@ function renderCheckList(root: HTMLElement, models: string[], selection: Set<str
   root.innerHTML = "";
   root.classList.toggle("empty", models.length === 0);
   if (models.length === 0) {
-    root.textContent = "暂无模型";
+    root.textContent = tr("noModels");
     return;
   }
   for (const model of models) {
@@ -568,6 +602,10 @@ function renderTestLogs() {
   testLogOutput.scrollTop = testLogOutput.scrollHeight;
 }
 
+function tr(key: string, values: Record<string, string | number> = {}) {
+  return translate(language, key, values);
+}
+
 function formRequest() {
   const request = {
     type: endpointType.value as EndpointType,
@@ -576,11 +614,11 @@ function formRequest() {
     timeout: Number(fetchTimeout.value || 30),
   };
   if (!request.base_url) {
-    alert("请填写端点 URL。");
+    alert(tr("missingEndpointUrl"));
     return null;
   }
   if (!request.api_key) {
-    alert("请填写 API Key。");
+    alert(tr("missingApiKey"));
     return null;
   }
   return request;
@@ -596,7 +634,7 @@ function clearInput() {
 
 function selectedEndpoint() {
   const endpoint = endpoints.find((item) => item.id === selectedEndpointId);
-  if (!endpoint) alert("请先选择一个已保存端点。");
+  if (!endpoint) alert(tr("selectEndpointFirst"));
   return endpoint;
 }
 

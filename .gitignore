@@ -9,11 +9,13 @@ env/
 codex.txt
 claude.txt
 tsa_endpoints.json
+test_settings.json
 claude-settings.json
 claude-settings.json.*.bak
 lagacy/codex.txt
 lagacy/claude.txt
 lagacy/tsa_endpoints.json
+lagacy/test_settings.json
 lagacy/claude-settings.json
 lagacy/claude-settings.json.*.bak
 *.log
@@ -29,3 +31,5 @@ node_modules/
 dist/
 src-tauri/target/
 src-tauri/gen/
+
+test_settings.json

@@ -10,6 +10,9 @@ use tauri::{ipc::Channel, Emitter, Manager};
 use time::OffsetDateTime;
 
 const DATA_FILE: &str = "tsa_endpoints.json";
+const TEST_SETTINGS_FILE: &str = "test_settings.json";
+const DEFAULT_SUCCESS_KEYWORD: &str = "OKK";
+const DEFAULT_PROMPT: &str = "You must output exactly OKK and nothing else. Do not explain. Do not add punctuation.";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct SavedEndpoint {
@@ -51,6 +54,12 @@ struct TestModelsRequest {
     models: Vec<String>,
     timeout: u64,
     append_1m: bool,
+    prompt: String,
+    success_keyword: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct TestSettings {
     prompt: String,
     success_keyword: String,
 }
@@ -136,6 +145,8 @@ pub fn run() {
             load_endpoints,
             add_endpoint,
             delete_endpoint,
+            load_test_settings,
+            save_test_settings,
             fetch_models,
             test_models,
             stop_test
@@ -175,6 +186,41 @@ fn delete_endpoint(endpoint_id: String) -> Result<(), String> {
     let mut store = read_store()?;
     store.endpoints.retain(|endpoint| endpoint.id != endpoint_id);
     write_store(&store)
+}
+
+#[tauri::command]
+fn load_test_settings() -> Result<TestSettings, String> {
+    let path = Path::new(TEST_SETTINGS_FILE);
+    if !path.exists() {
+        return Ok(default_test_settings());
+    }
+    let text = fs::read_to_string(path).map_err(|err| err.to_string())?;
+    let mut settings: TestSettings = serde_json::from_str(&text).map_err(|err| err.to_string())?;
+    if settings.success_keyword.trim().is_empty() {
+        settings.success_keyword = DEFAULT_SUCCESS_KEYWORD.to_string();
+    }
+    if settings.prompt.trim().is_empty() {
+        settings.prompt = DEFAULT_PROMPT.to_string();
+    }
+    Ok(settings)
+}
+
+#[tauri::command]
+fn save_test_settings(settings: TestSettings) -> Result<(), String> {
+    let prompt = settings.prompt.trim().to_string();
+    let success_keyword = settings.success_keyword.trim().to_string();
+    if prompt.is_empty() {
+        return Err("prompt is required".to_string());
+    }
+    if success_keyword.is_empty() {
+        return Err("success keyword is required".to_string());
+    }
+    if !prompt.contains(&success_keyword) {
+        return Err("prompt must contain success keyword".to_string());
+    }
+    let settings = TestSettings { prompt, success_keyword };
+    let text = serde_json::to_string_pretty(&settings).map_err(|err| err.to_string())?;
+    fs::write(TEST_SETTINGS_FILE, format!("{text}\n")).map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -287,6 +333,13 @@ fn read_store() -> Result<EndpointStore, String> {
 fn write_store(store: &EndpointStore) -> Result<(), String> {
     let text = serde_json::to_string_pretty(store).map_err(|err| err.to_string())?;
     fs::write(DATA_FILE, format!("{text}\n")).map_err(|err| err.to_string())
+}
+
+fn default_test_settings() -> TestSettings {
+    TestSettings {
+        prompt: DEFAULT_PROMPT.to_string(),
+        success_keyword: DEFAULT_SUCCESS_KEYWORD.to_string(),
+    }
 }
 
 fn new_id(endpoint_type: &str, endpoints: &[SavedEndpoint]) -> Result<String, String> {
