@@ -9,6 +9,10 @@ edition = "2021"
 name = "tsa_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[[bin]]
+name = "TestModelAlive"
+path = "src/main.rs"
+
 [build-dependencies]
 tauri-build = { version = "2.2", features = [] }
 
