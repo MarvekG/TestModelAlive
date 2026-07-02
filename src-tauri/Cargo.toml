@@ -1,0 +1,24 @@
+[package]
+name = "tsa"
+version = "0.1.0"
+description = "TSA endpoint manager"
+authors = ["TSA"]
+edition = "2021"
+
+[lib]
+name = "tsa_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.2", features = [] }
+
+[dependencies]
+flate2 = "1.0"
+reqwest = { version = "0.12", features = ["blocking", "gzip", "deflate", "json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2.5", features = [] }
+time = { version = "0.3", features = ["formatting", "local-offset"] }
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.29", features = ["process", "signal"] }
