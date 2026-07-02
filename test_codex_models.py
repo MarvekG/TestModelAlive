@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """Fetch server models and test them one by one through Codex CLI.
 
-Input file format, one endpoint per line:
-    https://example.com/v1;sk-...;gpt-5.5,gpt-5.4-mini
+By default this script reads codex endpoints from tsa_endpoints.json, the same
+JSON file used by the GUI. Endpoints with type="codex" are selected. If an
+endpoint has no saved models, --models is used.
 
-By default it tests gpt-5.5. Pass --models with comma-separated model ids to
-test a custom set when a line does not provide the third column. The actual
-tested set is the intersection of requested models and the server's /models
-response only when --models-check is set.
+The actual tested set is the intersection of requested models and the server's
+/models response only when --models-check is set.
 
 The script temporarily rewrites ~/.codex/auth.json and ~/.codex/config.toml for
 each model, runs `codex exec`, and always restores the original files before it
@@ -40,8 +39,8 @@ DEFAULT_MODELS = "gpt-5.5"
 LOG = logging.getLogger("codex-model-test")
 LINE = "=" * 72
 SUBLINE = "-" * 72
-FIELD_SEPARATORS = str.maketrans({"；": ";"})
 MODEL_SEPARATORS = str.maketrans({"，": ","})
+DEFAULT_ENDPOINTS_FILE = Path("tsa_endpoints.json")
 
 
 @dataclass(frozen=True)
@@ -94,28 +93,28 @@ class RestorableFile:
         raise RuntimeError(f"could not allocate backup path for {self.path}")
 
 
-def parse_endpoint_line(line: str, line_no: int) -> Endpoint | None:
-    clean = line.strip()
-    if not clean or clean.startswith("#"):
-        return None
-
-    parts = [part.strip() for part in clean.translate(FIELD_SEPARATORS).split(";")]
-    if len(parts) not in (2, 3) or not parts[0] or not parts[1]:
-        raise ValueError(f"api file line {line_no}: expected 'base_url;api_key;model1,model2'")
-    models = tuple(parse_models(parts[2])) if len(parts) == 3 and parts[2] else ()
-    return Endpoint(base_url=parts[0].rstrip("/"), api_key=parts[1], models=models)
-
-
-def load_endpoints(path: Path) -> list[Endpoint]:
-    endpoints: list[Endpoint] = []
+def load_endpoints(path: Path, endpoint_type: str = "codex") -> list[Endpoint]:
     with path.open("r", encoding="utf-8") as fh:
-        for line_no, line in enumerate(fh, start=1):
-            endpoint = parse_endpoint_line(line, line_no)
-            if endpoint is not None:
-                endpoints.append(endpoint)
+        payload = json.load(fh)
+    raw_endpoints = payload.get("endpoints")
+    if not isinstance(raw_endpoints, list):
+        raise ValueError(f"{path}: expected JSON object with endpoints: []")
+
+    endpoints: list[Endpoint] = []
+    for index, item in enumerate(raw_endpoints, start=1):
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("type", "")).lower() != endpoint_type:
+            continue
+        base_url = str(item.get("base_url", "")).strip().rstrip("/")
+        api_key = str(item.get("api_key", "")).strip()
+        if not base_url or not api_key:
+            raise ValueError(f"{path}: endpoint #{index} missing base_url or api_key")
+        models = tuple(str(model).strip() for model in item.get("models", []) if str(model).strip())
+        endpoints.append(Endpoint(base_url=base_url, api_key=api_key, models=models))
 
     if not endpoints:
-        raise ValueError(f"no endpoints found in {path}")
+        raise ValueError(f"no {endpoint_type} endpoints found in {path}")
     return endpoints
 
 
@@ -333,13 +332,17 @@ def main() -> int:
     parser.add_argument(
         "--api-file",
         type=Path,
-        default=Path("codex.txt"),
-        help="file containing base_url;api_key;model1,model2 lines",
+        default=DEFAULT_ENDPOINTS_FILE,
+        help="endpoint JSON file from GUI",
     )
     parser.add_argument("--codex-dir", type=Path, default=Path.home() / ".codex", help="Codex config directory")
     parser.add_argument("--fetch-timeout", type=int, default=30, help="seconds for /models requests")
     parser.add_argument("--codex-timeout", type=int, default=120, help="seconds for each codex exec")
-    parser.add_argument("--models", default=DEFAULT_MODELS, help="comma-separated model ids to test")
+    parser.add_argument(
+        "--models",
+        default=DEFAULT_MODELS,
+        help="comma-separated model ids to test when an endpoint has no saved models",
+    )
     parser.add_argument(
         "--models-check",
         action="store_true",
@@ -347,7 +350,7 @@ def main() -> int:
     )
     parser.add_argument("--limit", type=int, help="maximum models to test per endpoint")
     parser.add_argument("--domain", help="only test endpoint URLs containing this text")
-    parser.add_argument("--last-only", action="store_true", help="only test the last valid line in the api file")
+    parser.add_argument("--last-only", action="store_true", help="only test the last matching endpoint")
     parser.add_argument(
         "--list-only",
         action="store_true",
@@ -363,7 +366,7 @@ def main() -> int:
         LOG.error("codex command not found in PATH")
         return 127
 
-    endpoints = select_endpoints(filter_endpoints_by_domain(load_endpoints(args.api_file), args.domain), args.last_only)
+    endpoints = select_endpoints(filter_endpoints_by_domain(load_endpoints(args.api_file, "codex"), args.domain), args.last_only)
     if not endpoints:
         LOG.error("no endpoints matched the requested filters")
         return 1

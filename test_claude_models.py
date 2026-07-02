@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Test Claude CLI models from endpoint credentials.
 
-Input file format, one endpoint per line:
-    https://example.com;sk-...;claude-sonnet-4-5,claude-opus-4-5
-
-The third column is optional. If omitted, --models is used. Separators support
-both English and Chinese punctuation: ';'/'；' for fields and ','/'，' for models.
+By default this script reads claude endpoints from tsa_endpoints.json, the same
+JSON file used by the GUI. Endpoints with type="claude" are selected. If an
+endpoint has no saved models, --models is used.
 """
 
 from __future__ import annotations
@@ -36,8 +34,8 @@ LOG = logging.getLogger("claude-model-test")
 LINE = "=" * 72
 SUBLINE = "-" * 72
 SETTINGS_PATH = Path("claude-settings.json")
-FIELD_SEPARATORS = str.maketrans({"；": ";"})
 MODEL_SEPARATORS = str.maketrans({"，": ","})
+DEFAULT_ENDPOINTS_FILE = Path("tsa_endpoints.json")
 
 
 @dataclass(frozen=True)
@@ -90,28 +88,28 @@ class RestorableFile:
         raise RuntimeError(f"could not allocate backup path for {self.path}")
 
 
-def parse_endpoint_line(line: str, line_no: int) -> Endpoint | None:
-    clean = line.strip()
-    if not clean or clean.startswith("#"):
-        return None
-
-    parts = [part.strip() for part in clean.translate(FIELD_SEPARATORS).split(";")]
-    if len(parts) not in (2, 3) or not parts[0] or not parts[1]:
-        raise ValueError(f"claude file line {line_no}: expected 'base_url;api_key;model1,model2'")
-    models = tuple(parse_models(parts[2])) if len(parts) == 3 and parts[2] else ()
-    return Endpoint(base_url=parts[0].rstrip("/"), api_key=parts[1], models=models)
-
-
-def load_endpoints(path: Path) -> list[Endpoint]:
-    endpoints: list[Endpoint] = []
+def load_endpoints(path: Path, endpoint_type: str = "claude") -> list[Endpoint]:
     with path.open("r", encoding="utf-8") as fh:
-        for line_no, line in enumerate(fh, start=1):
-            endpoint = parse_endpoint_line(line, line_no)
-            if endpoint is not None:
-                endpoints.append(endpoint)
+        payload = json.load(fh)
+    raw_endpoints = payload.get("endpoints")
+    if not isinstance(raw_endpoints, list):
+        raise ValueError(f"{path}: expected JSON object with endpoints: []")
+
+    endpoints: list[Endpoint] = []
+    for index, item in enumerate(raw_endpoints, start=1):
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("type", "")).lower() != endpoint_type:
+            continue
+        base_url = str(item.get("base_url", "")).strip().rstrip("/")
+        api_key = str(item.get("api_key", "")).strip()
+        if not base_url or not api_key:
+            raise ValueError(f"{path}: endpoint #{index} missing base_url or api_key")
+        models = tuple(str(model).strip() for model in item.get("models", []) if str(model).strip())
+        endpoints.append(Endpoint(base_url=base_url, api_key=api_key, models=models))
 
     if not endpoints:
-        raise ValueError(f"no endpoints found in {path}")
+        raise ValueError(f"no {endpoint_type} endpoints found in {path}")
     return endpoints
 
 
@@ -295,6 +293,10 @@ def intersect_models(requested: Iterable[str], available: Iterable[str]) -> list
     return selected
 
 
+def append_1m_suffix(models: Iterable[str]) -> list[str]:
+    return [model if model.endswith("[1m]") else f"{model}[1m]" for model in models]
+
+
 def test_model(endpoint: Endpoint, model: str, timeout: int, settings_path: Path) -> ModelResult:
     start = time.monotonic()
     LOG.info(SUBLINE)
@@ -334,14 +336,14 @@ def main() -> int:
     parser.add_argument(
         "--claude-file",
         type=Path,
-        default=Path("claude.txt"),
-        help="file containing base_url;api_key;model1,model2 lines",
+        default=DEFAULT_ENDPOINTS_FILE,
+        help="endpoint JSON file from GUI",
     )
     parser.add_argument("--timeout", type=int, default=120, help="seconds for each claude test")
     parser.add_argument(
         "--models",
         default=DEFAULT_MODELS,
-        help="comma-separated model ids to test when a line has no third column",
+        help="comma-separated model ids to test when an endpoint has no saved models",
     )
     parser.add_argument(
         "--models-check",
@@ -350,8 +352,9 @@ def main() -> int:
     )
     parser.add_argument("--limit", type=int, help="maximum models to test per endpoint")
     parser.add_argument("--domain", help="only test endpoint URLs containing this text")
-    parser.add_argument("--last-only", action="store_true", help="only test the last valid line in the claude file")
+    parser.add_argument("--last-only", action="store_true", help="only test the last matching endpoint")
     parser.add_argument("--list-models", action="store_true", help="fetch and print server models; do not run claude")
+    parser.add_argument("-1m", dest="append_1m", action="store_true", help="append [1m] suffix to tested model ids")
     parser.add_argument("-v", "--verbose", action="store_true", help="enable debug logging")
     args = parser.parse_args()
     configure_logging(args.verbose)
@@ -361,7 +364,7 @@ def main() -> int:
         return 127
 
     endpoints = select_endpoints(
-        filter_endpoints_by_domain(load_endpoints(args.claude_file), args.domain),
+        filter_endpoints_by_domain(load_endpoints(args.claude_file, "claude"), args.domain),
         args.last_only,
     )
     if not endpoints:
@@ -423,6 +426,8 @@ def main() -> int:
                 else:
                     selected = iter_selected_models(endpoint_models, args.limit)
                     LOG.info("%s: testing %d requested models", endpoint.base_url, len(selected))
+                if args.append_1m:
+                    selected = append_1m_suffix(selected)
                 if not selected:
                     LOG.error(
                         "ENDPOINT_STATUS=UNAVAILABLE endpoint=%s reason=no_requested_models_selected",

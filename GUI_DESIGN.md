@@ -53,7 +53,7 @@ python3 -m pip install PyQt6
 tsa_endpoints.json
 ```
 
-`tsa_endpoints.json` 位于当前工作目录。GUI 启动时读取该文件；保存、删除或更新端点后写回该文件。
+`tsa_endpoints.json` 位于当前工作目录。GUI 启动时读取该文件；保存、删除或更新端点后写回该文件。两个 CLI 脚本也默认读取该文件，并按 `type` 过滤出各自端点。
 
 ## 数据结构
 
@@ -139,6 +139,23 @@ sk-1234...abcd
 8. 用户点击“保存端点”。
 9. GUI 将端点写入 `tsa_endpoints.json`。
 10. 已保存端点列表刷新。
+
+## CLI 读取规则
+
+`test_codex_models.py` 默认读取 `tsa_endpoints.json`，只使用 `type` 为 `codex` 的端点。
+
+`test_claude_models.py` 默认读取 `tsa_endpoints.json`，只使用 `type` 为 `claude` 的端点。
+
+两个脚本仍保留参数名：
+
+- Codex：`--api-file PATH`
+- Claude：`--claude-file PATH`
+
+这两个参数现在只接受同结构的 JSON 文件，不再读取旧的 `codex.txt` / `claude.txt` 文本格式。
+
+如果端点 JSON 中的 `models` 为空，CLI 会使用 `--models` 参数传入的模型列表。
+
+Claude CLI 额外支持 `-1m` 参数。启用后，会在最终测试的模型 ID 后追加 `[1m]`，例如 `claude-opus-4-6[1m]`。追加发生在 `/models` 交集和 `--limit` 之后，不影响模型存在性检查。
 
 已拉取模型区域提供：
 
