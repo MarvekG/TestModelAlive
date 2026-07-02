@@ -33,3 +33,4 @@ src-tauri/target/
 src-tauri/gen/
 
 test_settings.json
+.vite
