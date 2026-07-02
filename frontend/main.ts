@@ -33,20 +33,16 @@ let testEndpoint: SavedEndpoint | null = null;
 let testSelection = new Set<string>();
 let testResults: TestResult[] = [];
 let testRunning = false;
-let logChunks: string[] = [];
+let testLogChunks: string[] = [];
 
 app.innerHTML = `
   <main class="shell">
-    <section class="hero">
-      <div>
-        <p class="eyebrow">TSA Tauri</p>
-        <h1>端点管理与模型测活</h1>
-        <p>管理 Codex / Claude API 端点，拉取模型，调用本机 CLI 验证模型可用性。</p>
-      </div>
-      <div class="badge">Rust + TypeScript + Tauri</div>
-    </section>
+    <header class="app-bar">
+      <h1>TSA</h1>
+      <span>端点管理 / 模型拉取 / CLI 测试</span>
+    </header>
 
-    <section class="grid">
+    <section class="workspace">
       <div class="card form-card">
         <div class="card-title">
           <h2>添加端点</h2>
@@ -94,67 +90,73 @@ app.innerHTML = `
           <button id="copy-key" class="secondary">复制 KEY</button>
         </div>
       </div>
-    </section>
 
-    <section class="card models-card">
-      <div class="card-title">
-        <h2>已拉取模型</h2>
-        <div class="actions compact">
-          <button id="models-all" class="secondary">全选</button>
-          <button id="models-none" class="secondary">全不选</button>
-          <button id="models-invert" class="secondary">反选</button>
-        </div>
-      </div>
-      <div id="fetched-models" class="check-list empty">暂无模型</div>
-    </section>
-
-    <section id="test-panel" class="card test-card hidden">
-      <div class="card-title">
-        <div>
-          <h2>测试端点</h2>
-          <p id="test-meta"></p>
-        </div>
-        <button id="close-test" class="secondary">关闭</button>
-      </div>
-      <div class="test-layout">
-        <div>
-          <div class="test-controls">
-            <label>超时时间
-              <input id="test-timeout" type="number" min="1" max="3600" value="120" />
-            </label>
-            <label id="append-1m-label" class="inline-check">
-              <input id="append-1m" type="checkbox" />
-              模型后追加 1M 上下文 [1m]
-            </label>
-          </div>
+      <div class="card models-card">
+        <div class="card-title">
+          <h2>已拉取模型</h2>
           <div class="actions compact">
-            <button id="test-all" class="secondary">全选</button>
-            <button id="test-none" class="secondary">全不选</button>
-            <button id="test-invert" class="secondary">反选</button>
-          </div>
-          <div id="test-models" class="check-list test-models"></div>
-        </div>
-        <div>
-          <div class="actions">
-            <button id="start-test">开始测试</button>
-            <button id="stop-test" class="danger" disabled>停止</button>
-          </div>
-          <div class="table-wrap results">
-            <table>
-              <thead><tr><th>模型</th><th>状态</th><th>耗时</th></tr></thead>
-              <tbody id="result-rows"></tbody>
-            </table>
+            <button id="models-all" class="secondary">全选</button>
+            <button id="models-none" class="secondary">全不选</button>
+            <button id="models-invert" class="secondary">反选</button>
           </div>
         </div>
+        <div id="fetched-models" class="check-list empty">暂无模型</div>
       </div>
     </section>
 
-    <section class="card log-card">
-      <div class="card-title">
-        <h2>日志</h2>
-        <button id="clear-log" class="secondary">清空日志</button>
+    <section id="test-panel" class="test-modal hidden" aria-modal="true" role="dialog">
+      <div class="test-dialog">
+        <div class="modal-title">
+          <div>
+            <h2>测试模型</h2>
+          </div>
+          <button id="close-test" class="secondary">关闭</button>
+        </div>
+        <div class="test-endpoint-box">
+          <div><span>类型</span><strong id="test-type"></strong></div>
+          <div><span>URL</span><strong id="test-url"></strong><button id="test-copy-url" class="secondary">复制 URL</button></div>
+          <div><span>SK</span><strong id="test-key"></strong><button id="test-copy-key" class="secondary">复制 SK</button></div>
+        </div>
+        <div class="test-controls-bar">
+          <label>超时时间
+            <input id="test-timeout" type="number" min="1" max="3600" value="120" />
+          </label>
+          <label id="append-1m-label" class="inline-check">
+            <input id="append-1m" type="checkbox" />
+            模型后追加 1M 上下文 [1m]
+          </label>
+          <button id="start-test">开始测试</button>
+          <button id="stop-test" class="danger" disabled>停止</button>
+          <span id="test-status" class="test-status">未开始</span>
+        </div>
+        <div class="test-layout">
+          <div class="test-box test-left">
+            <h3>选择模型</h3>
+            <div class="actions compact">
+              <button id="test-all" class="secondary">全选</button>
+              <button id="test-none" class="secondary">全不选</button>
+              <button id="test-invert" class="secondary">反选</button>
+            </div>
+            <div id="test-models" class="check-list test-models"></div>
+          </div>
+          <div class="test-box test-right">
+            <h3>结果</h3>
+            <div class="table-wrap results">
+              <table>
+                <thead><tr><th>模型</th><th>状态</th><th>耗时</th></tr></thead>
+                <tbody id="result-rows"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="test-box test-log-box">
+          <div class="test-log-title">
+            <h3>日志</h3>
+            <button id="clear-test-log" class="secondary">清空</button>
+          </div>
+          <pre id="test-log-output"></pre>
+        </div>
       </div>
-      <pre id="log-output"></pre>
     </section>
   </main>
 `;
@@ -165,9 +167,10 @@ const apiKey = byId<HTMLInputElement>("api-key");
 const fetchTimeout = byId<HTMLInputElement>("fetch-timeout");
 const endpointRows = byId<HTMLTableSectionElement>("endpoint-rows");
 const fetchedModelsEl = byId<HTMLDivElement>("fetched-models");
-const logOutput = byId<HTMLPreElement>("log-output");
 const testPanel = byId<HTMLElement>("test-panel");
-const testMeta = byId<HTMLParagraphElement>("test-meta");
+const testType = byId<HTMLElement>("test-type");
+const testUrl = byId<HTMLElement>("test-url");
+const testKey = byId<HTMLElement>("test-key");
 const append1mLabel = byId<HTMLLabelElement>("append-1m-label");
 const append1m = byId<HTMLInputElement>("append-1m");
 const testModelsEl = byId<HTMLDivElement>("test-models");
@@ -175,6 +178,8 @@ const testTimeout = byId<HTMLInputElement>("test-timeout");
 const resultRows = byId<HTMLTableSectionElement>("result-rows");
 const startTest = byId<HTMLButtonElement>("start-test");
 const stopTest = byId<HTMLButtonElement>("stop-test");
+const testStatus = byId<HTMLSpanElement>("test-status");
+const testLogOutput = byId<HTMLPreElement>("test-log-output");
 
 bind("fetch-models", "click", fetchModels);
 bind("save-endpoint", "click", saveEndpoint);
@@ -189,14 +194,16 @@ bind("models-all", "click", () => setSelection(fetchedSelection, fetchedModels, 
 bind("models-none", "click", () => setSelection(fetchedSelection, fetchedModels, false, renderFetchedModels));
 bind("models-invert", "click", () => invertSelection(fetchedSelection, fetchedModels, renderFetchedModels));
 bind("close-test", "click", closeTestPanel);
+bind("test-copy-url", "click", () => copyFromTest("URL", (endpoint) => endpoint.base_url));
+bind("test-copy-key", "click", () => copyFromTest("SK", (endpoint) => endpoint.api_key));
 bind("test-all", "click", () => setSelection(testSelection, testEndpoint?.models ?? [], true, renderTestModels));
 bind("test-none", "click", () => setSelection(testSelection, testEndpoint?.models ?? [], false, renderTestModels));
 bind("test-invert", "click", () => invertSelection(testSelection, testEndpoint?.models ?? [], renderTestModels));
 bind("start-test", "click", runTests);
 bind("stop-test", "click", stopTests);
-bind("clear-log", "click", () => {
-  logChunks = [];
-  renderLogs();
+bind("clear-test-log", "click", () => {
+  testLogChunks = [];
+  renderTestLogs();
 });
 
 void listen<{ message: string; stream: boolean }>("test-log", (event) => {
@@ -211,6 +218,7 @@ void listen("test-finished", () => {
   testRunning = false;
   startTest.disabled = false;
   stopTest.disabled = true;
+  testStatus.textContent = "已结束";
 });
 
 void loadEndpoints();
@@ -291,18 +299,25 @@ function openTestPanel() {
   testEndpoint = endpoint;
   testSelection = new Set(endpoint.models);
   testResults = [];
+  testLogChunks = [];
   append1m.checked = false;
   testPanel.classList.remove("hidden");
-  testMeta.textContent = `${label(endpoint.type)} · ${endpoint.base_url} · ${maskKey(endpoint.api_key)}`;
+  document.body.classList.add("modal-open");
+  testType.textContent = label(endpoint.type);
+  testUrl.textContent = endpoint.base_url;
+  testKey.textContent = maskKey(endpoint.api_key);
+  testStatus.textContent = "未开始";
   append1mLabel.classList.toggle("hidden", endpoint.type !== "claude");
   renderTestModels();
   renderResults();
+  renderTestLogs();
 }
 
 function closeTestPanel() {
   if (testRunning && !confirm("测试仍在运行，是否停止并关闭？")) return;
   if (testRunning) void stopTests();
   testPanel.classList.add("hidden");
+  document.body.classList.remove("modal-open");
 }
 
 async function runTests() {
@@ -317,6 +332,8 @@ async function runTests() {
   testRunning = true;
   startTest.disabled = true;
   stopTest.disabled = false;
+  testStatus.textContent = `运行中：${models.length} 个模型`;
+  log(`starting CLI test request: type=${testEndpoint.type} url=${testEndpoint.base_url} models=${models.length} timeout=${Number(testTimeout.value || 120)}s`);
   try {
     await invoke("test_models", {
       request: {
@@ -330,6 +347,7 @@ async function runTests() {
     testRunning = false;
     startTest.disabled = false;
     stopTest.disabled = true;
+    testStatus.textContent = "启动失败";
     alertError("启动测试失败", error);
   }
 }
@@ -410,9 +428,9 @@ function renderResults() {
   }
 }
 
-function renderLogs() {
-  logOutput.textContent = logChunks.join("");
-  logOutput.scrollTop = logOutput.scrollHeight;
+function renderTestLogs() {
+  testLogOutput.textContent = testLogChunks.join("");
+  testLogOutput.scrollTop = testLogOutput.scrollHeight;
 }
 
 function formRequest() {
@@ -454,6 +472,12 @@ async function copyFromSelected(labelText: string, getter: (endpoint: SavedEndpo
   log(`copied ${labelText}: ${labelText === "URL" ? endpoint.base_url : endpoint.base_url}`);
 }
 
+async function copyFromTest(labelText: string, getter: (endpoint: SavedEndpoint) => string) {
+  if (!testEndpoint) return;
+  await navigator.clipboard.writeText(getter(testEndpoint));
+  testLog(`copied ${labelText}`);
+}
+
 function setSelection(selection: Set<string>, models: string[], checked: boolean, render: () => void) {
   selection.clear();
   if (checked) {
@@ -472,13 +496,24 @@ function invertSelection(selection: Set<string>, models: string[], render: () =>
 
 function log(message: string) {
   const stamp = new Date().toLocaleTimeString("zh-CN", { hour12: false });
-  logChunks.push(`${stamp} ${message}\n`);
-  renderLogs();
+  const line = `${stamp} ${message}\n`;
+  if (isTestPanelOpen()) testLogChunks.push(line);
+  renderTestLogs();
 }
 
 function appendStreamLog(message: string) {
-  logChunks.push(message);
-  renderLogs();
+  if (isTestPanelOpen()) testLogChunks.push(message);
+  renderTestLogs();
+}
+
+function testLog(message: string) {
+  const stamp = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+  testLogChunks.push(`${stamp} ${message}\n`);
+  renderTestLogs();
+}
+
+function isTestPanelOpen() {
+  return !testPanel.classList.contains("hidden");
 }
 
 function label(type: EndpointType) {

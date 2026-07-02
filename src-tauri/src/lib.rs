@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -452,7 +452,11 @@ fn run_command(
             });
         }
     }
-    let child = Arc::new(Mutex::new(process.spawn().map_err(|err| err.to_string())?));
+    let child = Arc::new(Mutex::new(process.spawn().map_err(|err| {
+        let message = format!("failed to start command: {err}");
+        emit_log(app, &message);
+        message
+    })?));
     *state.current_child.lock().map_err(|err| err.to_string())? = Some(child.clone());
     let stdout = child
         .lock()
@@ -467,8 +471,8 @@ fn run_command(
         .take()
         .ok_or_else(|| "failed to capture stderr".to_string())?;
     let output = Arc::new(Mutex::new(String::new()));
-    let stdout_reader = spawn_stream_reader(app.clone(), stdout, output.clone());
-    let stderr_reader = spawn_stream_reader(app.clone(), stderr, output.clone());
+    let stdout_reader = spawn_stream_reader(app.clone(), stdout, output.clone(), false);
+    let stderr_reader = spawn_stream_reader(app.clone(), stderr, output.clone(), true);
 
     let deadline = Instant::now() + Duration::from_secs(timeout);
     let status = loop {
@@ -512,6 +516,7 @@ fn spawn_stream_reader<R: Read + Send + 'static>(
     app: tauri::AppHandle,
     mut stream: R,
     output: Arc<Mutex<String>>,
+    is_stderr: bool,
 ) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
         let mut buffer = [0_u8; 1024];
@@ -523,6 +528,13 @@ fn spawn_stream_reader<R: Read + Send + 'static>(
             };
             let chunk = String::from_utf8_lossy(&buffer[..count]).to_string();
             emit_stream_log(&app, &chunk);
+            if is_stderr {
+                let _ = std::io::stderr().write_all(&buffer[..count]);
+                let _ = std::io::stderr().flush();
+            } else {
+                let _ = std::io::stdout().write_all(&buffer[..count]);
+                let _ = std::io::stdout().flush();
+            }
             if let Ok(mut output) = output.lock() {
                 output.push_str(&chunk);
             }
@@ -571,6 +583,7 @@ fn stop_requested(state: &tauri::State<'_, AppState>) -> bool {
 }
 
 fn emit_log(app: &tauri::AppHandle, message: &str) {
+    println!("{message}");
     let _ = app.emit(
         "test-log",
         LogEvent {
