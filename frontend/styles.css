@@ -412,6 +412,27 @@ tr.selected {
   width: min(560px, 100%);
 }
 
+.model-picker-dialog {
+  background: #f8fafc;
+  border: 1px solid #dfe6f1;
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 28%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100vh - 48px);
+  padding: 14px;
+  width: min(760px, 100%);
+}
+
+.model-picker-list {
+  flex: 1;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  max-height: none;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .choice-dialog h2 {
   font-size: 1.05rem;
   margin: 0;
@@ -530,6 +551,12 @@ tr.selected {
   min-width: 0;
 }
 
+.test-left {
+  display: flex;
+  flex-direction: column;
+  height: 195px;
+}
+
 .inline-check {
   align-items: center;
   display: flex;
@@ -542,9 +569,12 @@ tr.selected {
 }
 
 .test-models {
+  flex: 1;
   grid-template-columns: 1fr;
   margin-top: 6px;
-  max-height: 330px;
+  max-height: none;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .test-actions {
