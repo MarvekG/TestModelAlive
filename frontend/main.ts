@@ -270,6 +270,14 @@ bind("clear-test-log", "click", () => {
   testLogChunks = [];
   renderTestLogs();
 });
+testPanel.addEventListener("click", (event) => {
+  if (event.target === testPanel) closeTestPanel();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !testPanel.classList.contains("hidden")) {
+    closeTestPanel();
+  }
+});
 
 void loadEndpoints();
 void loadTestSettings();
