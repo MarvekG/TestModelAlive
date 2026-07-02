@@ -1,5 +1,6 @@
 fn main() {
     set_default_env("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    set_default_env("LIBGL_ALWAYS_SOFTWARE", "1");
     tsa_lib::run();
 }
 

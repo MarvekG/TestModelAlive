@@ -37,6 +37,7 @@ struct AddEndpointRequest {
     base_url: String,
     api_key: String,
     models: Vec<String>,
+    overwrite: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -171,17 +172,35 @@ fn add_endpoint(app: tauri::AppHandle, request: AddEndpointRequest) -> Result<Sa
     let path = store_path(&app, DATA_FILE)?;
     let mut store = read_store(&path)?;
     let endpoint_type = request.endpoint_type.trim().to_string();
+    let base_url = request.base_url.trim().trim_end_matches('/').to_string();
+    let api_key = request.api_key.trim().to_string();
+    let models = request
+        .models
+        .into_iter()
+        .map(|model| model.trim().to_string())
+        .filter(|model| !model.is_empty())
+        .collect();
+
+    if request.overwrite.unwrap_or(false) {
+        if let Some(endpoint) = store
+            .endpoints
+            .iter_mut()
+            .find(|endpoint| endpoint.endpoint_type == endpoint_type && endpoint.base_url == base_url)
+        {
+            endpoint.api_key = api_key;
+            endpoint.models = models;
+            let endpoint = endpoint.clone();
+            write_store(&path, &store)?;
+            return Ok(endpoint);
+        }
+    }
+
     let endpoint = SavedEndpoint {
         id: new_id(&endpoint_type, &store.endpoints)?,
         endpoint_type,
-        base_url: request.base_url.trim().trim_end_matches('/').to_string(),
-        api_key: request.api_key.trim().to_string(),
-        models: request
-            .models
-            .into_iter()
-            .map(|model| model.trim().to_string())
-            .filter(|model| !model.is_empty())
-            .collect(),
+        base_url,
+        api_key,
+        models,
     };
     store.endpoints.push(endpoint.clone());
     write_store(&path, &store)?;

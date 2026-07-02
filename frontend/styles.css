@@ -331,7 +331,8 @@ tr.selected {
 }
 
 .test-modal,
-.settings-modal {
+.settings-modal,
+.choice-modal {
   align-items: center;
   background: rgb(8 17 35 / 55%);
   display: flex;
@@ -344,6 +345,10 @@ tr.selected {
 
 .settings-modal {
   z-index: 20;
+}
+
+.choice-modal {
+  z-index: 30;
 }
 
 .test-dialog {
@@ -371,6 +376,45 @@ tr.selected {
   max-width: 680px;
   padding: 14px;
   width: min(680px, 100%);
+}
+
+.choice-dialog {
+  background: #f8fafc;
+  border: 1px solid #dfe6f1;
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 28%);
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+  padding: 16px;
+  width: min(560px, 100%);
+}
+
+.choice-dialog h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.choice-dialog p {
+  color: #526078;
+  font-weight: 650;
+  margin: 0;
+}
+
+.choice-url {
+  background: white;
+  border: 1px solid #dfe6f1;
+  border-radius: 10px;
+  color: #172033;
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  overflow: hidden;
+  padding: 9px 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.choice-actions {
+  justify-content: flex-end;
 }
 
 .settings-hint {

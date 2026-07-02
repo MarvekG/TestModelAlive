@@ -328,9 +328,17 @@ async function saveEndpoint() {
     alert(tr("selectAtLeastOneFetchedModel"));
     return;
   }
+  const duplicate = endpoints.find((endpoint) => endpoint.type === request.type && endpoint.base_url === request.base_url);
+  let overwrite = false;
+  if (duplicate) {
+    const action = await confirmDuplicateEndpointAction(request.base_url);
+    if (action === "cancel") return;
+    overwrite = action === "overwrite";
+  }
   try {
-    await invoke("add_endpoint", { request: { ...request, models } });
-    log(`saved endpoint: type=${request.type} url=${request.base_url} models=${models.length}`);
+    const savedEndpoint = await invoke<SavedEndpoint>("add_endpoint", { request: { ...request, models, overwrite } });
+    selectedEndpointId = savedEndpoint.id;
+    log(`${overwrite ? "overwrote" : "saved"} endpoint: type=${request.type} url=${request.base_url} models=${models.length}`);
     await loadEndpoints();
   } catch (error) {
     alertError(tr("saveFailed"), error);
@@ -340,7 +348,7 @@ async function saveEndpoint() {
 async function deleteSelectedEndpoint() {
   const endpoint = selectedEndpoint();
   if (!endpoint) return;
-  if (!confirm(`${tr("confirmDeleteEndpoint")}\n${endpoint.base_url}`)) return;
+  if (!(await confirmDeleteAction(tr("deleteEndpointTitle"), tr("confirmDeleteEndpoint"), endpoint.base_url))) return;
   try {
     await invoke("delete_endpoint", { endpointId: endpoint.id });
     log(`deleted endpoint: ${endpoint.base_url}`);
@@ -357,7 +365,7 @@ async function deleteCheckedEndpoints() {
     alert(tr("checkEndpointsFirst"));
     return;
   }
-  if (!confirm(tr("confirmDeleteChecked", { count: selected.length }))) return;
+  if (!(await confirmDeleteAction(tr("batchDeleteEndpointTitle"), tr("confirmDeleteChecked", { count: selected.length })))) return;
   try {
     for (const endpoint of selected) {
       await invoke("delete_endpoint", { endpointId: endpoint.id });
@@ -700,6 +708,86 @@ function testLog(message: string) {
 
 function isTestPanelOpen() {
   return !testPanel.classList.contains("hidden");
+}
+
+function confirmDuplicateEndpointAction(url: string): Promise<"add" | "overwrite" | "cancel"> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "choice-modal";
+    overlay.innerHTML = `
+      <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-endpoint-title">
+        <h2 id="duplicate-endpoint-title">${escapeHtml(tr("duplicateEndpointTitle"))}</h2>
+        <p>${escapeHtml(tr("duplicateEndpointMessage"))}</p>
+        <div class="choice-url" title="${escapeAttr(url)}">${escapeHtml(url)}</div>
+        <div class="actions choice-actions">
+          <button data-action="add">${escapeHtml(tr("addNew"))}</button>
+          <button data-action="overwrite" class="danger">${escapeHtml(tr("overwrite"))}</button>
+          <button data-action="cancel" class="secondary">${escapeHtml(tr("cancel"))}</button>
+        </div>
+      </div>
+    `;
+
+    const finish = (action: "add" | "overwrite" | "cancel") => {
+      document.removeEventListener("keydown", onKeyDown);
+      overlay.remove();
+      document.body.classList.toggle("modal-open", isTestPanelOpen());
+      resolve(action);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") finish("cancel");
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) finish("cancel");
+    });
+    overlay.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
+      button.addEventListener("click", () => finish(button.dataset.action as "add" | "overwrite" | "cancel"));
+    });
+
+    document.body.classList.add("modal-open");
+    document.addEventListener("keydown", onKeyDown);
+    document.body.append(overlay);
+    overlay.querySelector<HTMLButtonElement>('button[data-action="add"]')?.focus();
+  });
+}
+
+function confirmDeleteAction(title: string, message: string, detail = ""): Promise<boolean> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "choice-modal";
+    overlay.innerHTML = `
+      <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
+        <h2 id="delete-confirm-title">${escapeHtml(title)}</h2>
+        <p>${escapeHtml(message)}</p>
+        ${detail ? `<div class="choice-url" title="${escapeAttr(detail)}">${escapeHtml(detail)}</div>` : ""}
+        <div class="actions choice-actions">
+          <button data-action="confirm" class="danger">${escapeHtml(tr("delete"))}</button>
+          <button data-action="cancel" class="secondary">${escapeHtml(tr("cancel"))}</button>
+        </div>
+      </div>
+    `;
+
+    const finish = (confirmed: boolean) => {
+      document.removeEventListener("keydown", onKeyDown);
+      overlay.remove();
+      document.body.classList.toggle("modal-open", isTestPanelOpen());
+      resolve(confirmed);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") finish(false);
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) finish(false);
+    });
+    overlay.querySelector<HTMLButtonElement>('button[data-action="confirm"]')?.addEventListener("click", () => finish(true));
+    overlay.querySelector<HTMLButtonElement>('button[data-action="cancel"]')?.addEventListener("click", () => finish(false));
+
+    document.body.classList.add("modal-open");
+    document.addEventListener("keydown", onKeyDown);
+    document.body.append(overlay);
+    overlay.querySelector<HTMLButtonElement>('button[data-action="cancel"]')?.focus();
+  });
 }
 
 function label(type: EndpointType) {
