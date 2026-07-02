@@ -306,7 +306,7 @@ async function loadTestSettings() {
 }
 
 async function fetchModels() {
-  const request = formRequest();
+  const request = await formRequest(tr("fetchModels"));
   if (!request) return;
   log(`fetching models: type=${request.type} url=${request.base_url}`);
   setBusy("fetch-models", true);
@@ -324,11 +324,11 @@ async function fetchModels() {
 }
 
 async function saveEndpoint() {
-  const request = formRequest();
+  const request = await formRequest(tr("saveEndpoint"));
   if (!request) return;
   const models = fetchedModels.filter((model) => fetchedSelection.has(model));
   if (models.length === 0) {
-    alert(tr("selectAtLeastOneFetchedModel"));
+    await showAlert(tr("saveEndpoint"), tr("selectAtLeastOneFetchedModel"));
     return;
   }
   const duplicate = endpoints.find((endpoint) => endpoint.type === request.type && endpoint.base_url === request.base_url);
@@ -365,7 +365,7 @@ async function deleteSelectedEndpoint() {
 async function deleteCheckedEndpoints() {
   const selected = endpoints.filter((endpoint) => checkedEndpointIds.has(endpoint.id));
   if (selected.length === 0) {
-    alert(tr("checkEndpointsFirst"));
+    await showAlert(tr("batchDeleteEndpointTitle"), tr("checkEndpointsFirst"));
     return;
   }
   if (!(await confirmDeleteAction(tr("batchDeleteEndpointTitle"), tr("confirmDeleteChecked", { count: selected.length })))) return;
@@ -414,8 +414,8 @@ function openTestPanel() {
   renderTestLogs();
 }
 
-function closeTestPanel() {
-  if (testRunning && !confirm(tr("testStillRunning"))) return;
+async function closeTestPanel() {
+  if (testRunning && !(await showConfirm(tr("testModels"), tr("testStillRunning"), tr("stop")))) return;
   if (testRunning) void stopTests();
   testPanel.classList.add("hidden");
   document.body.classList.remove("modal-open");
@@ -425,7 +425,7 @@ async function runTests() {
   if (!testEndpoint) return;
   const models = testEndpoint.models.filter((model) => testSelection.has(model));
   if (models.length === 0) {
-    alert(tr("selectAtLeastOneModel"));
+    await showAlert(tr("testModels"), tr("selectAtLeastOneModel"));
     return;
   }
   testResults = [];
@@ -493,15 +493,15 @@ async function saveTestSettings() {
   const keyword = successKeywordInput.value.trim();
   const prompt = testPromptInput.value.trim();
   if (!keyword) {
-    alert(tr("missingKeyword"));
+    await showAlert(tr("testSettings"), tr("missingKeyword"));
     return;
   }
   if (!prompt) {
-    alert(tr("missingPrompt"));
+    await showAlert(tr("testSettings"), tr("missingPrompt"));
     return;
   }
   if (!prompt.includes(keyword)) {
-    alert(tr("promptMustContainKeyword"));
+    await showAlert(tr("testSettings"), tr("promptMustContainKeyword"));
     return;
   }
   try {
@@ -625,7 +625,7 @@ function tr(key: string, values: Record<string, string | number> = {}) {
   return translate(language, key, values);
 }
 
-function formRequest() {
+async function formRequest(title: string) {
   const request = {
     type: endpointType.value as EndpointType,
     base_url: baseUrl.value.trim().replace(/\/+$/, ""),
@@ -633,11 +633,11 @@ function formRequest() {
     timeout: Number(fetchTimeout.value || 30),
   };
   if (!request.base_url) {
-    alert(tr("missingEndpointUrl"));
+    await showAlert(title, tr("missingEndpointUrl"));
     return null;
   }
   if (!request.api_key) {
-    alert(tr("missingApiKey"));
+    await showAlert(title, tr("missingApiKey"));
     return null;
   }
   return request;
@@ -653,7 +653,7 @@ function clearInput() {
 
 function selectedEndpoint() {
   const endpoint = endpoints.find((item) => item.id === selectedEndpointId);
-  if (!endpoint) alert(tr("selectEndpointFirst"));
+  if (!endpoint) void showAlert(tr("savedEndpoints"), tr("selectEndpointFirst"));
   return endpoint;
 }
 
@@ -766,41 +766,83 @@ function confirmDuplicateEndpointAction(url: string): Promise<"add" | "overwrite
 }
 
 function confirmDeleteAction(title: string, message: string, detail = ""): Promise<boolean> {
+  return showConfirm(title, message, tr("delete"), detail, "danger");
+}
+
+function showAlert(title: string, message: string, detail = ""): Promise<void> {
+  return showChoiceDialog<void>({
+    title,
+    message,
+    detail,
+    buttons: [{ action: "ok", label: tr("ok"), className: "" }],
+    initialAction: "ok",
+    cancelAction: "ok",
+    resolve: () => undefined,
+  });
+}
+
+function showConfirm(title: string, message: string, confirmLabel = tr("confirm"), detail = "", confirmClassName = ""): Promise<boolean> {
+  return showChoiceDialog<boolean>({
+    title,
+    message,
+    detail,
+    buttons: [
+      { action: "confirm", label: confirmLabel, className: confirmClassName },
+      { action: "cancel", label: tr("cancel"), className: "secondary" },
+    ],
+    initialAction: "cancel",
+    cancelAction: "cancel",
+    resolve: (action) => action === "confirm",
+  });
+}
+
+function showChoiceDialog<T>(options: {
+  title: string;
+  message: string;
+  detail?: string;
+  buttons: { action: string; label: string; className: string }[];
+  initialAction: string;
+  cancelAction: string;
+  resolve: (action: string) => T;
+}): Promise<T> {
   return new Promise((resolve) => {
+    const titleId = `choice-title-${Date.now().toString(36)}`;
     const overlay = document.createElement("div");
     overlay.className = "choice-modal";
     overlay.innerHTML = `
-      <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
-        <h2 id="delete-confirm-title">${escapeHtml(title)}</h2>
-        <p>${escapeHtml(message)}</p>
-        ${detail ? `<div class="choice-url" title="${escapeAttr(detail)}">${escapeHtml(detail)}</div>` : ""}
+      <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="${titleId}">
+        <h2 id="${titleId}">${escapeHtml(options.title)}</h2>
+        <p>${escapeHtml(options.message)}</p>
+        ${options.detail ? `<div class="choice-url" title="${escapeAttr(options.detail)}">${escapeHtml(options.detail)}</div>` : ""}
         <div class="actions choice-actions">
-          <button data-action="confirm" class="danger">${escapeHtml(tr("delete"))}</button>
-          <button data-action="cancel" class="secondary">${escapeHtml(tr("cancel"))}</button>
+          ${options.buttons
+            .map((button) => `<button data-action="${escapeAttr(button.action)}" class="${escapeAttr(button.className)}">${escapeHtml(button.label)}</button>`)
+            .join("")}
         </div>
       </div>
     `;
 
-    const finish = (confirmed: boolean) => {
+    const finish = (action: string) => {
       document.removeEventListener("keydown", onKeyDown);
       overlay.remove();
       document.body.classList.toggle("modal-open", isTestPanelOpen());
-      resolve(confirmed);
+      resolve(options.resolve(action));
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") finish(false);
+      if (event.key === "Escape") finish(options.cancelAction);
     };
 
     overlay.addEventListener("click", (event) => {
-      if (event.target === overlay) finish(false);
+      if (event.target === overlay) finish(options.cancelAction);
     });
-    overlay.querySelector<HTMLButtonElement>('button[data-action="confirm"]')?.addEventListener("click", () => finish(true));
-    overlay.querySelector<HTMLButtonElement>('button[data-action="cancel"]')?.addEventListener("click", () => finish(false));
+    overlay.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
+      button.addEventListener("click", () => finish(button.dataset.action ?? options.cancelAction));
+    });
 
     document.body.classList.add("modal-open");
     document.addEventListener("keydown", onKeyDown);
     document.body.append(overlay);
-    overlay.querySelector<HTMLButtonElement>('button[data-action="cancel"]')?.focus();
+    overlay.querySelector<HTMLButtonElement>(`button[data-action="${cssEscape(options.initialAction)}"]`)?.focus();
   });
 }
 
@@ -829,7 +871,11 @@ function setBusy(id: string, busy: boolean) {
 }
 
 function alertError(title: string, error: unknown) {
-  alert(`${title}:\n${String(error)}`);
+  void showAlert(title, String(error));
+}
+
+function cssEscape(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 function escapeHtml(value: string) {
