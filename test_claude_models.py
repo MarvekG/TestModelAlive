@@ -11,6 +11,7 @@ both English and Chinese punctuation: ';'/'；' for fields and ','/'，' for mod
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import logging
 import os
@@ -22,6 +23,7 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -155,7 +157,7 @@ def fetch_models(endpoint: Endpoint, timeout: int) -> list[str]:
         },
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+        payload = json.loads(decode_response_body(response.read(), response.headers.get("Content-Encoding")))
 
     raw_models = payload.get("data") or payload.get("models")
     if not isinstance(raw_models, list):
@@ -169,6 +171,15 @@ def fetch_models(endpoint: Endpoint, timeout: int) -> list[str]:
             models.append(item["id"])
 
     return sorted(set(models))
+
+
+def decode_response_body(body: bytes, content_encoding: str | None) -> str:
+    encoding = (content_encoding or "").lower()
+    if "gzip" in encoding or body.startswith(b"\x1f\x8b"):
+        body = gzip.decompress(body)
+    elif "deflate" in encoding:
+        body = zlib.decompress(body)
+    return body.decode("utf-8")
 
 
 def write_claude_settings(settings_path: Path, endpoint: Endpoint, model: str) -> None:
