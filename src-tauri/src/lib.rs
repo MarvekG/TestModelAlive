@@ -563,7 +563,14 @@ fn run_command(
     timeout: u64,
     success_keyword: &str,
 ) -> Result<(String, String), String> {
-    let program_path = resolve_program(&command.program)?;
+    let program_path = match resolve_program(&command.program) {
+        Ok(program_path) => program_path,
+        Err(err) => {
+            let message = format!("failed to find CLI binary: {err}");
+            emit_test_log(app, on_event, &message);
+            return Err(message);
+        }
+    };
     emit_test_log(app, on_event, &format!("running: {}", shell_join(&program_path, &command.args)));
     let mut process = command_process(&program_path, &command.args);
     process.envs(command.envs.iter().map(|(key, value)| (key, value))).stdout(Stdio::piped()).stderr(Stdio::piped());
