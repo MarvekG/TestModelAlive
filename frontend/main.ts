@@ -159,7 +159,9 @@ app.innerHTML = `
         <div class="test-layout">
           <div class="test-box test-left">
           <h3 id="choose-models-title">${t("chooseModels")}</h3>
-            <div class="actions compact">
+            <div class="actions compact wrap">
+              <button id="test-fetch-models" class="secondary">${t("fetchModels")}</button>
+              <button id="test-save-models" class="secondary">${t("saveModels")}</button>
               <button id="test-all" class="secondary">${t("selectAll")}</button>
               <button id="test-none" class="secondary">${t("selectNone")}</button>
               <button id="test-invert" class="secondary">${t("invert")}</button>
@@ -259,6 +261,8 @@ bind("models-invert", "click", () => invertSelection(fetchedSelection, fetchedMo
 bind("close-test", "click", closeTestPanel);
 bind("test-copy-url", "click", () => copyFromTest("URL", (endpoint) => endpoint.base_url));
 bind("test-copy-key", "click", () => copyFromTest("SK", (endpoint) => endpoint.api_key));
+bind("test-fetch-models", "click", fetchTestModels);
+bind("test-save-models", "click", saveTestModels);
 bind("test-all", "click", () => setSelection(testSelection, testEndpoint?.models ?? [], true, renderTestModels));
 bind("test-none", "click", () => setSelection(testSelection, testEndpoint?.models ?? [], false, renderTestModels));
 bind("test-invert", "click", () => invertSelection(testSelection, testEndpoint?.models ?? [], renderTestModels));
@@ -459,6 +463,136 @@ async function runTests() {
     testStatus.textContent = tr("launchFailed");
     alertError(tr("startTestFailed"), error);
   }
+}
+
+async function fetchTestModels() {
+  if (!testEndpoint) return;
+  if (testRunning) {
+    await showAlert(tr("testModels"), tr("testStillRunning"));
+    return;
+  }
+  const request = {
+    type: testEndpoint.type,
+    base_url: testEndpoint.base_url,
+    api_key: testEndpoint.api_key,
+    timeout: Number(fetchTimeout.value || 30),
+  };
+  testLog(`fetching latest models: type=${request.type} url=${request.base_url}`);
+  setBusy("test-fetch-models", true);
+  try {
+    const models = await invoke<string[]>("fetch_models", { request });
+    testLog(`fetched latest models: ${models.length}`);
+    const selectedModels = await chooseFetchedTestModels(models);
+    if (!selectedModels) return;
+    await saveTestModelSelection(selectedModels);
+  } catch (error) {
+    alertError(tr("fetchFailed"), error);
+    testLog(`fetch latest models failed: ${String(error)}`);
+  } finally {
+    setBusy("test-fetch-models", false);
+  }
+}
+
+async function saveTestModels() {
+  if (!testEndpoint) return;
+  const models = testEndpoint.models.filter((model) => testSelection.has(model));
+  await saveTestModelSelection(models);
+}
+
+async function saveTestModelSelection(models: string[]) {
+  if (!testEndpoint) return;
+  if (models.length === 0) {
+    await showAlert(tr("testModels"), tr("selectAtLeastOneModel"));
+    return;
+  }
+  setBusy("test-save-models", true);
+  try {
+    const savedEndpoint = await invoke<SavedEndpoint>("add_endpoint", {
+      request: {
+        type: testEndpoint.type,
+        base_url: testEndpoint.base_url,
+        api_key: testEndpoint.api_key,
+        models,
+        overwrite: true,
+      },
+    });
+    testEndpoint = savedEndpoint;
+    testSelection = new Set(models);
+    selectedEndpointId = savedEndpoint.id;
+    testLog(`saved selected models: ${models.length}`);
+    await loadEndpoints();
+    renderTestModels();
+  } catch (error) {
+    alertError(tr("saveFailed"), error);
+  } finally {
+    setBusy("test-save-models", false);
+  }
+}
+
+function chooseFetchedTestModels(models: string[]): Promise<string[] | null> {
+  return new Promise((resolve) => {
+    const selection = new Set(models);
+    const overlay = document.createElement("div");
+    overlay.className = "choice-modal";
+    overlay.innerHTML = `
+      <div class="model-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="fetched-test-models-title">
+        <div class="modal-title">
+          <h2 id="fetched-test-models-title">${escapeHtml(tr("fetchedModels"))}</h2>
+          <button data-action="cancel" class="secondary">${escapeHtml(tr("cancel"))}</button>
+        </div>
+        <div class="actions compact wrap">
+          <button data-action="all" class="secondary">${escapeHtml(tr("selectAll"))}</button>
+          <button data-action="none" class="secondary">${escapeHtml(tr("selectNone"))}</button>
+          <button data-action="invert" class="secondary">${escapeHtml(tr("invert"))}</button>
+          <button data-action="save">${escapeHtml(tr("saveModels"))}</button>
+        </div>
+        <div class="check-list model-picker-list"></div>
+      </div>
+    `;
+    const list = overlay.querySelector<HTMLDivElement>(".model-picker-list");
+    if (!list) {
+      resolve(null);
+      return;
+    }
+
+    const render = () => renderCheckList(list, models, selection, "fetched-test");
+    const finish = (selectedModels: string[] | null) => {
+      document.removeEventListener("keydown", onKeyDown);
+      overlay.remove();
+      document.body.classList.toggle("modal-open", isTestPanelOpen());
+      resolve(selectedModels);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") finish(null);
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) finish(null);
+    });
+    overlay.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const action = button.dataset.action;
+        if (action === "cancel") finish(null);
+        else if (action === "all") setSelection(selection, models, true, render);
+        else if (action === "none") setSelection(selection, models, false, render);
+        else if (action === "invert") invertSelection(selection, models, render);
+        else if (action === "save") {
+          const selectedModels = models.filter((model) => selection.has(model));
+          if (selectedModels.length === 0) {
+            await showAlert(tr("testModels"), tr("selectAtLeastOneModel"));
+            return;
+          }
+          finish(selectedModels);
+        }
+      });
+    });
+
+    document.body.classList.add("modal-open");
+    document.addEventListener("keydown", onKeyDown);
+    render();
+    document.body.append(overlay);
+    overlay.querySelector<HTMLButtonElement>('button[data-action="save"]')?.focus();
+  });
 }
 
 async function stopTests() {
