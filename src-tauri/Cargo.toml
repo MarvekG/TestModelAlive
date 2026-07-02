@@ -1,5 +1,5 @@
 [package]
-name = "tsa"
+name = "TestModelAlive"
 version = "0.1.0"
 description = "TSA endpoint manager"
 authors = ["TSA"]
