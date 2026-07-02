@@ -227,7 +227,7 @@ async function fetchModels() {
   log(`fetching models: type=${request.type} url=${request.base_url}`);
   setBusy("fetch-models", true);
   try {
-    fetchedModels = await invoke<string[]>("fetch_models", request);
+    fetchedModels = await invoke<string[]>("fetch_models", { request });
     fetchedSelection = new Set(fetchedModels);
     renderFetchedModels();
     log(`fetched ${fetchedModels.length} models`);
