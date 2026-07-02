@@ -512,7 +512,6 @@ fn prepare_codex(app: &tauri::AppHandle, endpoint: &SavedEndpoint, model: &str, 
             args: vec![
                 "exec".to_string(),
                 "--skip-git-repo-check".to_string(),
-                "--ignore-user-config".to_string(),
                 prompt.to_string(),
             ],
             envs: vec![("CODEX_HOME".to_string(), codex_dir.to_string_lossy().to_string())],
