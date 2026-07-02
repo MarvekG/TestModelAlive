@@ -786,7 +786,7 @@ fn cli_search_paths() -> Vec<PathBuf> {
 fn executable_candidates(dir: &Path, program: &str) -> Vec<PathBuf> {
     #[cfg(windows)]
     {
-        ["", ".exe", ".cmd", ".bat", ".ps1"]
+        [".exe", ".cmd", ".bat", ".ps1", ""]
             .iter()
             .map(|extension| dir.join(format!("{program}{extension}")))
             .collect()
