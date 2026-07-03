@@ -32,6 +32,7 @@ export function getElements() {
     testSettingsPanel: byId<HTMLElement>("test-settings-panel"),
     successKeywordInput: byId<HTMLInputElement>("success-keyword"),
     testPromptInput: byId<HTMLTextAreaElement>("test-prompt"),
+    docsPanel: byId<HTMLElement>("docs-panel"),
     toast: byId<HTMLDivElement>("toast"),
   };
 }
