@@ -42,12 +42,15 @@ fn merge_codex_toml(path: &Path, endpoint: &SavedEndpoint, model: &str) -> Resul
             .map_err(|err| format!("{} is not valid TOML: {err}", path.display()))?
     };
     doc["model"] = toml_edit::value(model);
-    doc["model_provider"] = toml_edit::value("testmodelalive");
+    doc["model_provider"] = toml_edit::value(endpoint.name.as_str());
     let providers = doc["model_providers"].or_insert(toml_edit::table());
-    let provider = providers["testmodelalive"].or_insert(toml_edit::table());
+    let provider = providers[endpoint.name.as_str()].or_insert(toml_edit::table());
     provider["name"] = toml_edit::value(endpoint.name.as_str());
     provider["base_url"] = toml_edit::value(endpoint.base_url.as_str());
+    provider["env_key"] = toml_edit::value("OPENAI_API_KEY");
     provider["wire_api"] = toml_edit::value("responses");
-    provider["requires_openai_auth"] = toml_edit::value(true);
+    if let Some(table) = provider.as_table_mut() {
+        table.remove("requires_openai_auth");
+    }
     Ok(format!("{}\n", doc))
 }

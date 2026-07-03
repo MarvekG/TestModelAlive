@@ -5,6 +5,10 @@ export function buildCliConfigPreviewApi(endpoint: SavedEndpoint, target: CliCon
   return invokeCommand<CliConfigPreview>("build_cli_config_preview", { endpoint, target, selectedModels });
 }
 
+export function buildRemoveOpenCodeConfigPreviewApi(endpoint: SavedEndpoint) {
+  return invokeCommand<CliConfigPreview>("build_remove_opencode_config_preview", { endpoint });
+}
+
 export function applyCliConfigApi(endpoint: SavedEndpoint, target: CliConfigTargetKind, editedConfig: EditedCliConfig) {
   return invokeCommand<ApplyCliConfigResult>("apply_cli_config", { endpoint, target, editedConfig });
 }

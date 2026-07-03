@@ -17,6 +17,8 @@ use crate::settings::{
     CliConfigApplyHistoryItem, CliConfigBaselineView,
 };
 
+use super::opencode;
+
 #[tauri::command]
 pub fn build_cli_config_preview(
     _app: tauri::AppHandle,
@@ -25,6 +27,23 @@ pub fn build_cli_config_preview(
     selected_models: Vec<String>,
 ) -> Result<CliConfigPreview, String> {
     build_preview(endpoint, target, selected_models)
+}
+
+#[tauri::command]
+pub fn build_remove_opencode_config_preview(
+    _app: tauri::AppHandle,
+    endpoint: SavedEndpoint,
+) -> Result<CliConfigPreview, String> {
+    if endpoint.endpoint_type != "codex" {
+        return Err("OpenCode config uses codex-compatible endpoints".to_string());
+    }
+    let target = CliConfigTargetKind::Opencode;
+    let files = cli_target_files(&target)?;
+    Ok(CliConfigPreview {
+        endpoint_type: endpoint.endpoint_type.clone(),
+        target: target.as_str().to_string(),
+        files: opencode::build_remove_opencode_preview(&endpoint, &files)?,
+    })
 }
 
 #[tauri::command]

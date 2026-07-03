@@ -18,6 +18,7 @@ pub fn run() {
             test_runner::test_models,
             test_runner::stop_test,
             cli_config::commands::build_cli_config_preview,
+            cli_config::commands::build_remove_opencode_config_preview,
             cli_config::commands::apply_cli_config,
             cli_config::commands::load_cli_config_baseline_items,
             cli_config::commands::restore_original_cli_config,

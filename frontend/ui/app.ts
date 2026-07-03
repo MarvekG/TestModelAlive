@@ -2,7 +2,7 @@ import { Channel } from "@tauri-apps/api/core";
 import { translate, type Language } from "../i18n";
 import { addEndpointApi, loadEndpointsApi, deleteEndpointApi } from "../api/endpoints";
 import { fetchModelsApi, loadTestSettingsApi, saveTestSettingsApi, stopTestApi, testCliWithRealConfigApi, testModelsApi } from "../api/testModels";
-import { applyCliConfigApi, buildCliConfigPreviewApi, loadCliConfigBaselineItemsApi, restoreOriginalCliConfigApi } from "../api/cliConfig";
+import { applyCliConfigApi, buildCliConfigPreviewApi, buildRemoveOpenCodeConfigPreviewApi, loadCliConfigBaselineItemsApi, restoreOriginalCliConfigApi } from "../api/cliConfig";
 import type { CliConfigTargetKind, SavedEndpoint, TestMessage, TestResult, TestSettings } from "../types";
 import { createInitialState } from "../state";
 import { bind, setBusy } from "../utils/dom";
@@ -86,6 +86,7 @@ export function initApp() {
     bind("open-test-settings", "click", () => openTestSettingsDialog(elements, successKeyword, testPrompt));
     bind("apply-codex", "click", () => applyCliConfig("codex"));
     bind("apply-opencode", "click", () => applyCliConfig("opencode"));
+    bind("remove-opencode", "click", removeOpenCodeConfig);
     bind("apply-claude", "click", () => applyCliConfig("claude"));
     bind("close-test-settings", "click", () => closeTestSettingsDialog(elements));
     bind("save-test-settings", "click", saveTestSettings);
@@ -224,6 +225,7 @@ export function initApp() {
     elements.append1mLabel.classList.toggle("hidden", endpoint.type !== "claude");
     elements.applyCodex.classList.toggle("hidden", endpoint.type !== "codex");
     elements.applyOpenCode.classList.toggle("hidden", endpoint.type !== "codex");
+    elements.removeOpenCode.classList.toggle("hidden", endpoint.type !== "codex");
     elements.applyClaude.classList.toggle("hidden", endpoint.type !== "claude");
     renderTestModels();
     renderResults();
@@ -271,7 +273,7 @@ export function initApp() {
     const onEvent = createTestEventChannel({ logToPanel: true, onFinished: () => setApplyBusy(false) });
     try {
       await testCliWithRealConfigApi(
-        { target, models, timeout: Number(elements.testTimeout.value || 120), prompt: testPrompt, success_keyword: successKeyword },
+        { target, endpoint_name: testEndpoint.name, models, timeout: Number(elements.testTimeout.value || 120), prompt: testPrompt, success_keyword: successKeyword },
         onEvent,
       );
     } catch (error) {
@@ -313,6 +315,28 @@ export function initApp() {
       await showAlert(t("restoreConfigResultTitle"), t("restoredConfig"), restoreResultDetail(result));
     } catch (error) {
       alertError(t("restoreConfigFailed"), error);
+    }
+  }
+
+  async function removeOpenCodeConfig() {
+    if (!testEndpoint) return;
+    if (testRunning) {
+      await showAlert(t("testModels"), t("testStillRunning"));
+      return;
+    }
+    if (testEndpoint.type !== "codex") return;
+    setApplyBusy(true);
+    try {
+      const preview = await buildRemoveOpenCodeConfigPreviewApi(testEndpoint);
+      const models = testEndpoint.models.length > 0 ? testEndpoint.models : selectedTestModels();
+      const editedConfig = await showCliConfigPreviewDialog({ preview, models, t, isModalOpen: isTestPanelOpen, showAlert, title: t("removeFromOpenCode") });
+      if (!editedConfig) return;
+      const result = await applyCliConfigApi(testEndpoint, "opencode", editedConfig);
+      await showAlert(t("removeFromOpenCode"), t("removedFromOpenCode"), result.results.map((item) => item.path).join("\n"));
+    } catch (error) {
+      alertError(t("removeOpenCodeFailed"), error);
+    } finally {
+      setApplyBusy(false);
     }
   }
 
@@ -535,6 +559,7 @@ export function initApp() {
   function setApplyBusy(busy: boolean) {
     elements.applyCodex.disabled = busy;
     elements.applyOpenCode.disabled = busy;
+    elements.removeOpenCode.disabled = busy;
     elements.applyClaude.disabled = busy;
   }
 

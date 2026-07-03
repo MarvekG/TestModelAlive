@@ -42,6 +42,7 @@ export const messages: Record<Language, Record<string, string>> = {
     applyToCodex: "应用到 Codex",
     applyToClaude: "应用到 Claude",
     applyToOpenCode: "应用到 OpenCode",
+    removeFromOpenCode: "从 OpenCode 移除",
     testCurrentConfig: "用当前配置测试",
     notStarted: "未开始",
     chooseModels: "选择模型",
@@ -108,6 +109,10 @@ export const messages: Record<Language, Record<string, string>> = {
     saveSettingsFailed: "保存测试设置失败",
     applyCliConfigFailed: "应用 CLI 配置失败",
     restoreConfigFailed: "还原配置失败",
+    confirmRemoveOpenCode: "确定从 OpenCode 配置中移除当前端点匹配的供应商？会按 URL 和 API Key 匹配。",
+    removedFromOpenCode: "已从 OpenCode 配置中移除匹配供应商。",
+    openCodeConfigNotFound: "未找到匹配的 OpenCode 供应商。",
+    removeOpenCodeFailed: "从 OpenCode 移除失败",
   },
   en: {
     subtitle: "Endpoint Management / CLI Test",
@@ -148,6 +153,7 @@ export const messages: Record<Language, Record<string, string>> = {
     applyToCodex: "Apply to Codex",
     applyToClaude: "Apply to Claude",
     applyToOpenCode: "Apply to OpenCode",
+    removeFromOpenCode: "Remove from OpenCode",
     testCurrentConfig: "Test Current Config",
     notStarted: "Not started",
     chooseModels: "Choose Models",
@@ -214,6 +220,10 @@ export const messages: Record<Language, Record<string, string>> = {
     saveSettingsFailed: "Failed to save test settings",
     applyCliConfigFailed: "Failed to apply CLI config",
     restoreConfigFailed: "Failed to restore config",
+    confirmRemoveOpenCode: "Remove providers from OpenCode config that match this endpoint URL and API key?",
+    removedFromOpenCode: "Removed matching provider from OpenCode config.",
+    openCodeConfigNotFound: "No matching OpenCode provider was found.",
+    removeOpenCodeFailed: "Failed to remove from OpenCode",
   },
 };
 

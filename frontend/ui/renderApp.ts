@@ -108,6 +108,7 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
           <button id="open-test-settings" class="secondary">${t("testSettings")}</button>
           <button id="apply-codex" class="secondary hidden">${t("applyToCodex")}</button>
           <button id="apply-opencode" class="secondary hidden">${t("applyToOpenCode")}</button>
+          <button id="remove-opencode" class="secondary hidden">${t("removeFromOpenCode")}</button>
           <button id="apply-claude" class="secondary hidden">${t("applyToClaude")}</button>
           <span id="test-status" class="test-status">${t("notStarted")}</span>
         </div>

@@ -25,6 +25,7 @@ pub struct AppState {
 #[derive(Clone, Debug, Deserialize)]
 pub struct RealCliTestRequest {
     pub target: CliConfigTargetKind,
+    pub endpoint_name: Option<String>,
     pub models: Vec<String>,
     pub timeout: u64,
     pub prompt: String,
@@ -137,7 +138,12 @@ pub fn test_cli_with_real_config(
                 break;
             }
             let start = Instant::now();
-            let command = real_config_command(&request.target, &model, &request.prompt);
+            let command = real_config_command(
+                &request.target,
+                request.endpoint_name.as_deref(),
+                &model,
+                &request.prompt,
+            );
             let result = match run_command(
                 &app_handle,
                 &on_event,
@@ -206,11 +212,18 @@ fn run_model_test(
     })
 }
 
-fn real_config_command(target: &CliConfigTargetKind, model: &str, prompt: &str) -> TestCommand {
+fn real_config_command(
+    target: &CliConfigTargetKind,
+    endpoint_name: Option<&str>,
+    model: &str,
+    prompt: &str,
+) -> TestCommand {
     match target {
         CliConfigTargetKind::Codex => codex::real_config_command(prompt),
         CliConfigTargetKind::Claude => claude::real_config_command(prompt),
-        CliConfigTargetKind::Opencode => opencode::real_config_command(model, prompt),
+        CliConfigTargetKind::Opencode => {
+            opencode::real_config_command(endpoint_name.unwrap_or(""), model, prompt)
+        }
     }
 }
 
@@ -225,6 +238,15 @@ fn validate_real_cli_test_request(request: &RealCliTestRequest) -> Result<(), St
             }
         }
         CliConfigTargetKind::Opencode => {
+            if request
+                .endpoint_name
+                .as_deref()
+                .unwrap_or("")
+                .trim()
+                .is_empty()
+            {
+                return Err("OpenCode real config test requires an endpoint name".to_string());
+            }
             if request.models.is_empty() {
                 return Err(
                     "OpenCode real config test requires at least one selected model".to_string(),

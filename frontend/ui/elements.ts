@@ -23,6 +23,7 @@ export function getElements() {
     stopTest: byId<HTMLButtonElement>("stop-test"),
     applyCodex: byId<HTMLButtonElement>("apply-codex"),
     applyOpenCode: byId<HTMLButtonElement>("apply-opencode"),
+    removeOpenCode: byId<HTMLButtonElement>("remove-opencode"),
     applyClaude: byId<HTMLButtonElement>("apply-claude"),
     testStatus: byId<HTMLSpanElement>("test-status"),
     testLogOutput: byId<HTMLPreElement>("test-log-output"),

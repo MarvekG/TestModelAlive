@@ -14,6 +14,7 @@ export function showCliConfigPreviewDialog(options: {
   t: (key: string, values?: Record<string, string | number>) => string;
   isModalOpen: () => boolean;
   showAlert: (title: string, message: string) => Promise<void>;
+  title?: string;
 }): Promise<EditedCliConfig | null> {
   const { preview, models, t, isModalOpen, showAlert } = options;
   return new Promise((resolve) => {
@@ -22,7 +23,7 @@ export function showCliConfigPreviewDialog(options: {
     overlay.innerHTML = `
       <div class="cli-config-dialog" role="dialog" aria-modal="true">
         <div class="modal-title">
-          <h2>${escapeHtml(t("cliConfigPreviewTitle", { target: cliTargetLabel(preview.target) }))}</h2>
+          <h2>${escapeHtml(options.title ?? t("cliConfigPreviewTitle", { target: cliTargetLabel(preview.target) }))}</h2>
           <button data-action="cancel" class="secondary">${escapeHtml(t("cancel"))}</button>
         </div>
         <p class="settings-hint warning-box">${escapeHtml(t("cliConfigWarning"))}</p>
