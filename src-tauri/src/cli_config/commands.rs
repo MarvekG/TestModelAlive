@@ -44,6 +44,7 @@ pub fn build_remove_opencode_config_preview(
         endpoint_type: endpoint.endpoint_type.clone(),
         target: target.as_str().to_string(),
         files: opencode::build_remove_opencode_preview(&endpoint, &files)?,
+        warnings: Vec::new(),
     })
 }
 

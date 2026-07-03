@@ -271,6 +271,7 @@ export function initApp() {
       models = await modelsForCliConfig(target, models);
       const defaultModel = await chooseOpenCodeDefaultModel(target, models);
       const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel);
+      if (!(await confirmCliConfigWarnings(preview))) return;
       const editedConfig = await showCliConfigPreviewDialog({ preview, models, t, isModalOpen: isTestPanelOpen, showAlert });
       if (!editedConfig) return;
       const result = await applyCliConfigApi(testEndpoint, target, editedConfig);
@@ -281,6 +282,18 @@ export function initApp() {
     } finally {
       setApplyBusy(false);
     }
+  }
+
+  async function confirmCliConfigWarnings(preview: Awaited<ReturnType<typeof buildCliConfigPreviewApi>>) {
+    const overwrite = preview.warnings.find((warning) => warning.kind === "open_code_provider_overwrite");
+    if (!overwrite) return true;
+    return showConfirm(
+      cliTargetLabel(preview.target),
+      t("confirmOverwriteOpenCodeProvider", { provider: overwrite.provider }),
+      t("overwrite"),
+      overwrite.provider,
+      "danger",
+    );
   }
 
   async function modelsForCliConfig(target: CliConfigTargetKind, models: string[]) {

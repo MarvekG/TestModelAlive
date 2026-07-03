@@ -33,7 +33,10 @@ export interface CliConfigPreview {
   endpoint_type: string;
   target: CliConfigTargetKind;
   files: CliConfigPreviewFile[];
+  warnings: CliConfigPreviewWarning[];
 }
+
+export type CliConfigPreviewWarning = { kind: "open_code_provider_overwrite"; provider: string };
 
 export interface CliConfigPreviewFile {
   file_id: string;

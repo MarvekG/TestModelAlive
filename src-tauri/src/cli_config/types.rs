@@ -23,6 +23,13 @@ pub struct CliConfigPreview {
     pub endpoint_type: String,
     pub target: String,
     pub files: Vec<CliConfigPreviewFile>,
+    pub warnings: Vec<CliConfigPreviewWarning>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum CliConfigPreviewWarning {
+    OpenCodeProviderOverwrite { provider: String },
 }
 
 #[derive(Clone, Debug, Serialize)]

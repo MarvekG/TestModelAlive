@@ -2,20 +2,21 @@ use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::cli_config::types::CliConfigPreviewFile;
+use crate::cli_config::types::{CliConfigPreviewFile, CliConfigPreviewWarning};
 use crate::models::SavedEndpoint;
 
 use super::preview::{parse_jsonc_object, preview_file};
 
-pub(crate) fn build_opencode_preview(
+pub(crate) fn build_opencode_preview_with_warnings(
     endpoint: &SavedEndpoint,
     models: &[String],
     files: &[(String, PathBuf, String)],
     default_model: Option<String>,
-) -> Result<Vec<CliConfigPreviewFile>, String> {
+) -> Result<(Vec<CliConfigPreviewFile>, Vec<CliConfigPreviewWarning>), String> {
     let (file_id, path, language) = files
         .first()
         .ok_or_else(|| "OpenCode config path is missing".to_string())?;
+    let mut warnings = Vec::new();
     let mut value = if path.exists() {
         let text = fs::read_to_string(path).map_err(|err| err.to_string())?;
         if text.trim().is_empty() {
@@ -36,10 +37,9 @@ pub(crate) fn build_opencode_preview(
         .as_object_mut()
         .ok_or_else(|| "OpenCode provider must be a JSON object".to_string())?;
     if provider_object.contains_key(&endpoint.name) {
-        return Err(format!(
-            "OpenCode provider '{}' already exists",
-            endpoint.name
-        ));
+        warnings.push(CliConfigPreviewWarning::OpenCodeProviderOverwrite {
+            provider: endpoint.name.clone(),
+        });
     }
     provider_object.insert(
         endpoint.name.clone(),
@@ -60,15 +60,18 @@ pub(crate) fn build_opencode_preview(
         object.insert("model".to_string(), Value::String(qualified_model.clone()));
         object.insert("small_model".to_string(), Value::String(qualified_model));
     }
-    Ok(vec![preview_file(
-        file_id,
-        path,
-        language,
-        format!(
-            "{}\n",
-            serde_json::to_string_pretty(&value).map_err(|err| err.to_string())?
-        ),
-    )])
+    Ok((
+        vec![preview_file(
+            file_id,
+            path,
+            language,
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&value).map_err(|err| err.to_string())?
+            ),
+        )],
+        warnings,
+    ))
 }
 
 pub(crate) fn remove_matching_provider(
