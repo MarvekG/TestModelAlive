@@ -721,9 +721,11 @@ wire_api = "responses"
 - 如果缺少顶层 `includeGitInstructions`，补齐为 `false`。
 - 设置或覆盖 `env.ANTHROPIC_BASE_URL` 为当前端点 `base_url`。
 - 设置或覆盖 `env.ANTHROPIC_API_KEY` 为当前端点 `api_key`。
-- 设置或覆盖模型相关字段为用户当前选择的 Claude 模型，或用户确认追加 `[1m]` 后的模型名：`ANTHROPIC_MODEL`、`ANTHROPIC_DEFAULT_SONNET_MODEL`、`ANTHROPIC_DEFAULT_OPUS_MODEL`、`ANTHROPIC_DEFAULT_HAIKU_MODEL`、`ANTHROPIC_DEFAULT_FABLE_MODEL`、`ANTHROPIC_DEFAULT_SONNET_MODEL_NAME`、`ANTHROPIC_DEFAULT_OPUS_MODEL_NAME`、`ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME`、`ANTHROPIC_DEFAULT_FABLE_MODEL_NAME`。
+- 如果原配置已存在 `env.ANTHROPIC_AUTH_TOKEN`，同步覆盖为当前端点 `api_key`；如果原配置没有该字段，不主动新增。
+- 设置或覆盖模型 ID 字段为用户当前选择的 Claude 模型，或用户确认追加 `[1m]` 后的模型名：`ANTHROPIC_MODEL`、`ANTHROPIC_DEFAULT_SONNET_MODEL`、`ANTHROPIC_DEFAULT_OPUS_MODEL`、`ANTHROPIC_DEFAULT_HAIKU_MODEL`、`ANTHROPIC_DEFAULT_FABLE_MODEL`。
+- 如果原配置已存在模型显示名字段，则同步覆盖为同一个模型名：`ANTHROPIC_DEFAULT_SONNET_MODEL_NAME`、`ANTHROPIC_DEFAULT_OPUS_MODEL_NAME`、`ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME`、`ANTHROPIC_DEFAULT_FABLE_MODEL_NAME`；如果原配置没有这些字段，不主动新增。
 - 如果缺少 Claude Code 行为控制字段，按基础格式补齐。
-- 不主动写入 `env.ANTHROPIC_AUTH_TOKEN`。如果原配置里已有该字段，初版保留不删除，由用户在编辑确认框里自行删减。
+- 已存在的 `ANTHROPIC_AUTH_TOKEN` 会同步覆盖，避免旧 token 在 Claude 运行时继续优先生效；未存在时保持不写入，默认使用 `ANTHROPIC_API_KEY`。
 
 如果原文件不存在：创建基础 JSON。
 
@@ -743,10 +745,6 @@ wire_api = "responses"
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "用户选择的模型 ID",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "用户选择的模型 ID",
     "ANTHROPIC_DEFAULT_FABLE_MODEL": "用户选择的模型 ID",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "用户选择的模型 ID",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "用户选择的模型 ID",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "用户选择的模型 ID",
-    "ANTHROPIC_DEFAULT_FABLE_MODEL_NAME": "用户选择的模型 ID",
     "CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS": "1",
     "ENABLE_PROMPT_CACHING_1H": "1",
     "CLAUDE_CODE_ATTRIBUTION_HEADER": "0",
@@ -760,11 +758,11 @@ wire_api = "responses"
 
 说明：
 
-- 修改：`env.ANTHROPIC_BASE_URL`、`env.ANTHROPIC_API_KEY`。
-- 补齐缺失字段：`$schema`、`includeGitInstructions`、Claude Code 行为控制 env；模型相关 env 会覆盖为当前选择的模型。
+- 修改：`env.ANTHROPIC_BASE_URL`、`env.ANTHROPIC_API_KEY`；若 `env.ANTHROPIC_AUTH_TOKEN` 已存在，也会同步覆盖。
+- 补齐缺失字段：`$schema`、`includeGitInstructions`、Claude Code 行为控制 env；模型 ID env 会覆盖为当前选择的模型，模型显示名 env 仅在已存在时覆盖。
 - 保留：其他 settings 字段、permissions、hooks、mcpServers、env 中其他变量等。
 - 删除：初版不主动删除任何字段。
-- 模型字段使用用户当前选择的 Claude 模型 ID，或用户确认追加 `[1m]` 后的模型名，填充 `ANTHROPIC_MODEL` 以及默认 Sonnet、Opus、Haiku、Fable 的 `*_MODEL` 和 `*_MODEL_NAME` 字段。
+- 模型字段使用用户当前选择的 Claude 模型 ID，或用户确认追加 `[1m]` 后的模型名，填充 `ANTHROPIC_MODEL` 以及默认 Sonnet、Opus、Haiku、Fable 的 `*_MODEL` 字段；`*_MODEL_NAME` 字段仅在原配置已有时覆盖。
 - Claude 应用配置时必须且只能选择一个模型。
 - 如果当前没有选择模型，或选择了多个模型，预览生成失败并提示用户只选择一个模型。
 - 最终写入内容以用户在编辑确认框中确认的 `edited_config` 为准。

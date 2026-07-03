@@ -34,6 +34,12 @@ pub(crate) fn build_claude_preview(
                 "ANTHROPIC_BASE_URL".to_string(),
                 Value::String(endpoint.base_url.clone()),
             );
+            if env_object.contains_key("ANTHROPIC_AUTH_TOKEN") {
+                env_object.insert(
+                    "ANTHROPIC_AUTH_TOKEN".to_string(),
+                    Value::String(endpoint.api_key.clone()),
+                );
+            }
             env_object.insert(
                 "ANTHROPIC_API_KEY".to_string(),
                 Value::String(endpoint.api_key.clone()),
@@ -44,12 +50,18 @@ pub(crate) fn build_claude_preview(
                 "ANTHROPIC_DEFAULT_OPUS_MODEL",
                 "ANTHROPIC_DEFAULT_HAIKU_MODEL",
                 "ANTHROPIC_DEFAULT_FABLE_MODEL",
+            ] {
+                env_object.insert(key.to_string(), Value::String(model.to_string()));
+            }
+            for key in [
                 "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME",
                 "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME",
                 "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME",
                 "ANTHROPIC_DEFAULT_FABLE_MODEL_NAME",
             ] {
-                env_object.insert(key.to_string(), Value::String(model.to_string()));
+                if env_object.contains_key(key) {
+                    env_object.insert(key.to_string(), Value::String(model.to_string()));
+                }
             }
             for (key, value) in [
                 ("CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS", "1"),
