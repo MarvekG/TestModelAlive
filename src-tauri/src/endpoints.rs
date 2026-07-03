@@ -17,6 +17,8 @@ pub fn add_endpoint(
     request: AddEndpointRequest,
 ) -> Result<SavedEndpoint, String> {
     let mut settings = read_app_settings(&app)?;
+    let name = request.name.trim().to_string();
+    validate_endpoint_name(&name)?;
     let endpoint_type = request.endpoint_type.trim().to_string();
     let base_url = request.base_url.trim().trim_end_matches('/').to_string();
     let api_key = request.api_key.trim().to_string();
@@ -32,6 +34,7 @@ pub fn add_endpoint(
             endpoint.endpoint_type == endpoint_type && endpoint.base_url == base_url
         }) {
             endpoint.api_key = api_key;
+            endpoint.name = name;
             endpoint.models = models;
             let endpoint = endpoint.clone();
             write_app_settings_for_app(&app, &settings)?;
@@ -41,6 +44,7 @@ pub fn add_endpoint(
 
     let endpoint = SavedEndpoint {
         id: new_id(&endpoint_type, &settings.endpoints)?,
+        name,
         endpoint_type,
         base_url,
         api_key,
@@ -67,6 +71,7 @@ pub fn fetch_models(
 ) -> Result<Vec<String>, String> {
     let endpoint = SavedEndpoint {
         id: String::new(),
+        name: String::new(),
         endpoint_type: request.endpoint_type,
         base_url: request.base_url.trim().trim_end_matches('/').to_string(),
         api_key: request.api_key.trim().to_string(),
@@ -82,6 +87,16 @@ pub fn fetch_models(
     let models = fetch_endpoint_models(&endpoint, request.timeout)?;
     emit_log(&app, &format!("backend fetched {} models", models.len()));
     Ok(models)
+}
+
+fn validate_endpoint_name(name: &str) -> Result<(), String> {
+    if name.is_empty() {
+        return Err("name is required".to_string());
+    }
+    if !name.chars().all(|ch| ch.is_ascii_alphabetic()) {
+        return Err("name can only contain English letters".to_string());
+    }
+    Ok(())
 }
 
 fn new_id(endpoint_type: &str, endpoints: &[SavedEndpoint]) -> Result<String, String> {

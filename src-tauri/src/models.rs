@@ -7,6 +7,7 @@ pub const DEFAULT_PROMPT: &str =
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SavedEndpoint {
     pub id: String,
+    pub name: String,
     #[serde(rename = "type")]
     pub endpoint_type: String,
     pub base_url: String,
@@ -22,6 +23,7 @@ pub struct EndpointStore {
 
 #[derive(Debug, Deserialize)]
 pub struct AddEndpointRequest {
+    pub name: String,
     #[serde(rename = "type")]
     pub endpoint_type: String,
     pub base_url: String,

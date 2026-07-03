@@ -12,8 +12,9 @@ use crate::cli_config::types::{
 use crate::models::SavedEndpoint;
 use crate::paths::{cli_target_files, store_path, APP_SETTINGS_FILE};
 use crate::settings::{
-    read_app_settings, timestamp_id, write_app_settings, write_app_settings_for_app,
-    write_text_file, CliConfigApplyHistoryFile, CliConfigApplyHistoryItem, CliConfigBaselineView,
+    read_app_settings, timestamp, timestamp_id, trim_apply_history, write_app_settings,
+    write_app_settings_for_app, write_text_file, CliConfigApplyHistoryFile,
+    CliConfigApplyHistoryItem, CliConfigBaselineView,
 };
 
 #[tauri::command]
@@ -111,10 +112,11 @@ pub fn apply_cli_config(
             apply_id,
             target: target_name.clone(),
             endpoint_id,
-            created_at: timestamp_id("at"),
+            created_at: timestamp(),
             backup_paths: history_backups,
             files: history_files,
         });
+    trim_apply_history(&mut settings.cli_config);
     write_app_settings_for_app(&app, &settings)?;
 
     Ok(ApplyCliConfigResult {

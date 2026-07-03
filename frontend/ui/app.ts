@@ -81,6 +81,7 @@ export function initApp() {
     bind("test-none", "click", () => setSelection(testSelection, testEndpoint?.models ?? [], false, renderTestModels));
     bind("test-invert", "click", () => invertSelection(testSelection, testEndpoint?.models ?? [], renderTestModels));
     bind("start-test", "click", runTests);
+    bind("start-real-config-test", "click", runRealConfigTests);
     bind("stop-test", "click", stopTests);
     bind("open-test-settings", "click", () => openTestSettingsDialog(elements, successKeyword, testPrompt));
     bind("apply-codex", "click", () => applyCliConfig("codex"));
@@ -197,12 +198,13 @@ export function initApp() {
     const endpoint = selectedEndpoint();
     if (!endpoint) return;
     elements.endpointType.value = endpoint.type;
+    elements.endpointName.value = endpoint.name;
     elements.baseUrl.value = endpoint.base_url;
     elements.apiKey.value = endpoint.api_key;
     fetchedModels = [...endpoint.models];
     fetchedSelection = new Set(fetchedModels);
     renderFetchedModels();
-    log(`loaded endpoint into form: ${endpoint.base_url}`);
+    log(`loaded endpoint into form: ${endpoint.name} ${endpoint.base_url}`);
   }
 
   function openTestPanel() {
@@ -277,6 +279,21 @@ export function initApp() {
       setApplyBusy(false);
       alertError(t("startTestFailed"), error);
     }
+  }
+
+  async function runRealConfigTests() {
+    if (!testEndpoint) return;
+    if (testRunning) {
+      await showAlert(t("testModels"), t("testStillRunning"));
+      return;
+    }
+    const target: CliConfigTargetKind = testEndpoint.type === "claude" ? "claude" : "codex";
+    const models = selectedTestModels();
+    if (models.length !== 1) {
+      await showAlert(cliTargetLabel(target), t("selectExactlyOneModelForCli"));
+      return;
+    }
+    await testCliWithRealConfig(target, models);
   }
 
   async function openRestoreConfigDialog() {
@@ -373,7 +390,7 @@ export function initApp() {
     }
     setBusy("test-save-models", true);
     try {
-      const savedEndpoint = await addEndpointApi({ type: testEndpoint.type, base_url: testEndpoint.base_url, api_key: testEndpoint.api_key, models, overwrite: true });
+      const savedEndpoint = await addEndpointApi({ name: testEndpoint.name, type: testEndpoint.type, base_url: testEndpoint.base_url, api_key: testEndpoint.api_key, models, overwrite: true });
       testEndpoint = savedEndpoint;
       testSelection = new Set(models);
       selectedEndpointId = savedEndpoint.id;
@@ -524,6 +541,7 @@ export function initApp() {
   function setTestRunning(running: boolean) {
     testRunning = running;
     elements.startTest.disabled = running;
+    elements.startRealConfigTest.disabled = running;
     elements.stopTest.disabled = !running;
   }
 

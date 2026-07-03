@@ -3,6 +3,7 @@ export type CliConfigTargetKind = "codex" | "claude" | "opencode";
 
 export interface SavedEndpoint {
   id: string;
+  name: string;
   type: EndpointType;
   base_url: string;
   api_key: string;

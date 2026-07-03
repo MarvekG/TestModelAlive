@@ -25,6 +25,8 @@ pub struct AppSettings {
 pub struct CliConfigSettings {
     pub baseline_id: String,
     pub backup_root: String,
+    #[serde(default = "default_apply_history_limit")]
+    pub apply_history_limit: usize,
     pub baseline_items: Vec<CliConfigBaselineItem>,
     pub apply_history: Vec<CliConfigApplyHistoryItem>,
 }
@@ -159,6 +161,10 @@ pub fn timestamp_id(prefix: &str) -> String {
     )
 }
 
+pub fn timestamp() -> String {
+    OffsetDateTime::now_utc().unix_timestamp_nanos().to_string()
+}
+
 fn default_settings_version() -> u8 {
     1
 }
@@ -167,9 +173,14 @@ fn default_cli_config_settings() -> CliConfigSettings {
     CliConfigSettings {
         baseline_id: timestamp_id("baseline"),
         backup_root: String::new(),
+        apply_history_limit: default_apply_history_limit(),
         baseline_items: Vec::new(),
         apply_history: Vec::new(),
     }
+}
+
+fn default_apply_history_limit() -> usize {
+    20
 }
 
 fn default_app_settings(app: &tauri::AppHandle) -> Result<AppSettings, String> {
@@ -183,6 +194,7 @@ fn default_app_settings(app: &tauri::AppHandle) -> Result<AppSettings, String> {
                 .join("cli-config-backups")
                 .to_string_lossy()
                 .to_string(),
+            apply_history_limit: default_apply_history_limit(),
             baseline_items: Vec::new(),
             apply_history: Vec::new(),
         },
@@ -195,6 +207,7 @@ fn normalize_app_settings(
 ) -> Result<(), String> {
     settings.endpoints.retain(|endpoint| {
         !endpoint.id.is_empty()
+            && is_valid_endpoint_name(&endpoint.name)
             && !endpoint.endpoint_type.is_empty()
             && !endpoint.base_url.is_empty()
     });
@@ -208,7 +221,19 @@ fn normalize_app_settings(
             .to_string_lossy()
             .to_string();
     }
+    if settings.cli_config.apply_history_limit == 0 {
+        settings.cli_config.apply_history_limit = default_apply_history_limit();
+    }
+    trim_apply_history(&mut settings.cli_config);
     Ok(())
+}
+
+pub fn trim_apply_history(cli_config: &mut CliConfigSettings) {
+    let limit = cli_config.apply_history_limit;
+    if limit > 0 && cli_config.apply_history.len() > limit {
+        let drop_count = cli_config.apply_history.len() - limit;
+        cli_config.apply_history.drain(0..drop_count);
+    }
 }
 
 fn normalize_test_settings(settings: &mut TestSettings) {
@@ -231,6 +256,7 @@ fn migrate_legacy_into_settings(
                 .into_iter()
                 .filter(|endpoint| {
                     !endpoint.id.is_empty()
+                        && is_valid_endpoint_name(&endpoint.name)
                         && !endpoint.endpoint_type.is_empty()
                         && !endpoint.base_url.is_empty()
                 })
@@ -244,6 +270,10 @@ fn migrate_legacy_into_settings(
         }
     }
     Ok(())
+}
+
+fn is_valid_endpoint_name(name: &str) -> bool {
+    !name.is_empty() && name.chars().all(|ch| ch.is_ascii_alphabetic())
 }
 
 fn read_legacy_endpoint_store(app: &tauri::AppHandle) -> Result<Option<EndpointStore>, String> {

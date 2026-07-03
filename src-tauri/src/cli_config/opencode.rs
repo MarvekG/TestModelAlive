@@ -34,12 +34,11 @@ pub(crate) fn build_opencode_preview(
     let provider_object = provider
         .as_object_mut()
         .ok_or_else(|| "OpenCode provider must be a JSON object".to_string())?;
-    let provider_key = next_provider_key(provider_object);
+    let provider_key = next_provider_key(provider_object, &endpoint.name);
     provider_object.insert(
         provider_key,
         serde_json::json!({
             "npm": "@ai-sdk/openai-compatible",
-            "name": "TestModelAlive",
             "options": {
                 "baseURL": endpoint.base_url,
                 "apiKey": endpoint.api_key
@@ -58,13 +57,12 @@ pub(crate) fn build_opencode_preview(
     )])
 }
 
-fn next_provider_key(provider_object: &serde_json::Map<String, Value>) -> String {
-    const BASE: &str = "testmodelalive";
-    if !provider_object.contains_key(BASE) {
-        return BASE.to_string();
+fn next_provider_key(provider_object: &serde_json::Map<String, Value>, base: &str) -> String {
+    if !provider_object.contains_key(base) {
+        return base.to_string();
     }
     for index in 2.. {
-        let candidate = format!("{BASE}-{index}");
+        let candidate = format!("{base}-{index}");
         if !provider_object.contains_key(&candidate) {
             return candidate;
         }

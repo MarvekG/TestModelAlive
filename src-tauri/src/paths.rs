@@ -74,10 +74,10 @@ pub fn cli_target_files(
 pub fn opencode_config_path() -> Result<PathBuf, String> {
     #[cfg(windows)]
     {
-        let base = std::env::var_os("APPDATA")
-            .map(PathBuf::from)
-            .unwrap_or(user_home_dir()?.join("AppData").join("Roaming"));
-        return Ok(base.join("opencode").join("opencode.json"));
+        return Ok(user_home_dir()?
+            .join(".config")
+            .join("opencode")
+            .join("opencode.json"));
     }
     #[cfg(target_os = "macos")]
     {

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use time::OffsetDateTime;
 
 use crate::paths::app_data_dir;
-use crate::settings::{timestamp_id, AppSettings, CliConfigBaselineItem};
+use crate::settings::{timestamp, AppSettings, CliConfigBaselineItem};
 
 pub(crate) fn ensure_baseline_item(
     app: &tauri::AppHandle,
@@ -40,7 +40,7 @@ pub(crate) fn ensure_baseline_item(
             path: path_text,
             existed_before,
             backup_path,
-            created_at: timestamp_id("at"),
+            created_at: timestamp(),
         });
     Ok(())
 }

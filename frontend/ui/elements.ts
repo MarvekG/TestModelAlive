@@ -3,6 +3,7 @@ import { byId } from "../utils/dom";
 export function getElements() {
   return {
     endpointType: byId<HTMLSelectElement>("endpoint-type"),
+    endpointName: byId<HTMLInputElement>("endpoint-name"),
     baseUrl: byId<HTMLInputElement>("base-url"),
     apiKey: byId<HTMLInputElement>("api-key"),
     fetchTimeout: byId<HTMLInputElement>("fetch-timeout"),
@@ -18,6 +19,7 @@ export function getElements() {
     testTimeout: byId<HTMLInputElement>("test-timeout"),
     resultRows: byId<HTMLTableSectionElement>("result-rows"),
     startTest: byId<HTMLButtonElement>("start-test"),
+    startRealConfigTest: byId<HTMLButtonElement>("start-real-config-test"),
     stopTest: byId<HTMLButtonElement>("stop-test"),
     applyCodex: byId<HTMLButtonElement>("apply-codex"),
     applyOpenCode: byId<HTMLButtonElement>("apply-opencode"),

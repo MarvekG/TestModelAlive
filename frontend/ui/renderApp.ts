@@ -18,6 +18,9 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
           <h2 id="add-endpoint-title">${t("addEndpoint")}</h2>
           <button id="clear-input" class="secondary">${t("clear")}</button>
         </div>
+        <label><span id="endpoint-name-label">${t("name")}</span>
+          <input id="endpoint-name" placeholder="MyEndpoint" />
+        </label>
         <label><span id="endpoint-type-label">${t("type")}</span>
           <select id="endpoint-type">
             <option value="codex">codex</option>
@@ -47,7 +50,7 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th id="endpoint-check-header" class="check-column">${t("select")}</th><th id="endpoint-type-header">${t("type")}</th><th>URL</th><th id="endpoint-key-header">${t("sk")}</th><th id="endpoint-model-count-header">${t("modelCount")}</th></tr>
+              <tr><th id="endpoint-check-header" class="check-column">${t("select")}</th><th id="endpoint-name-header">${t("name")}</th><th id="endpoint-type-header">${t("type")}</th><th>URL</th><th id="endpoint-key-header">${t("sk")}</th><th id="endpoint-model-count-header">${t("modelCount")}</th></tr>
             </thead>
             <tbody id="endpoint-rows"></tbody>
           </table>
@@ -100,6 +103,7 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
             ${t("append1m")}
           </label>
           <button id="start-test">${t("startTest")}</button>
+          <button id="start-real-config-test" class="secondary">${t("startRealConfigTest")}</button>
           <button id="stop-test" class="danger" disabled>${t("stop")}</button>
           <button id="open-test-settings" class="secondary">${t("testSettings")}</button>
           <button id="apply-codex" class="secondary hidden">${t("applyToCodex")}</button>

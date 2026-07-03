@@ -288,7 +288,7 @@ CLI 配置备份目录：
   - `~/.claude/settings.json`
   - `~/.claude.json`
 - OpenCode 配置目录优先使用系统 config dir：
-  - Windows：优先 `%APPDATA%\opencode\opencode.json`，如果实际 OpenCode CLI 文档或本机样例确认使用 `%USERPROFILE%\.config\opencode\opencode.json`，则按 CLI 实际路径。
+  - Windows：`%USERPROFILE%\.config\opencode\opencode.json`。
   - macOS：`$HOME/Library/Application Support/opencode/opencode.json` 或 CLI 实际文档路径。
   - Linux：`${XDG_CONFIG_HOME:-$HOME/.config}/opencode/opencode.json`。
 - 当前文档中的 `~/.config/opencode/opencode.json` 只能作为 Linux/XDG 示例；实施前必须在 `paths.rs` 中集中封装 OpenCode 路径解析，避免散落硬编码。
