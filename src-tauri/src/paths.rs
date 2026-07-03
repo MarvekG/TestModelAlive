@@ -7,6 +7,7 @@ use crate::cli_config::types::CliConfigTargetKind;
 pub const DATA_FILE: &str = "tma_endpoints.json";
 pub const TEST_SETTINGS_FILE: &str = "test_settings.json";
 pub const APP_SETTINGS_FILE: &str = "settings.json";
+pub const CLI_APPLY_HISTORY_FILE: &str = "cli-config-apply-history.json";
 
 pub fn store_path(app: &tauri::AppHandle, file_name: &str) -> Result<PathBuf, String> {
     let dir = app_data_dir(app)?;

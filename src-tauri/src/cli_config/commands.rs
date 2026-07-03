@@ -12,8 +12,8 @@ use crate::cli_config::types::{
 use crate::models::SavedEndpoint;
 use crate::paths::{cli_target_files, store_path, APP_SETTINGS_FILE};
 use crate::settings::{
-    read_app_settings, timestamp, timestamp_id, trim_apply_history, write_app_settings,
-    write_app_settings_for_app, write_text_file, CliConfigApplyHistoryFile,
+    read_app_settings, read_apply_history_store, timestamp, timestamp_id, trim_apply_history_store,
+    write_app_settings, write_apply_history_store, write_text_file, CliConfigApplyHistoryFile,
     CliConfigApplyHistoryItem, CliConfigBaselineView,
 };
 
@@ -124,19 +124,18 @@ pub fn apply_cli_config(
         });
     }
 
-    settings
-        .cli_config
-        .apply_history
-        .push(CliConfigApplyHistoryItem {
-            apply_id,
-            target: target_name.clone(),
-            endpoint_id,
-            created_at: timestamp(),
-            backup_paths: history_backups,
-            files: history_files,
-        });
-    trim_apply_history(&mut settings.cli_config);
-    write_app_settings_for_app(&app, &settings)?;
+    let mut history_store = read_apply_history_store(&app)?;
+    history_store.limit = settings.cli_config.apply_history_limit;
+    history_store.items.push(CliConfigApplyHistoryItem {
+        apply_id,
+        target: target_name.clone(),
+        endpoint_id,
+        created_at: timestamp(),
+        backup_paths: history_backups,
+        files: history_files,
+    });
+    trim_apply_history_store(&mut history_store);
+    write_apply_history_store(&app, &history_store)?;
 
     Ok(ApplyCliConfigResult {
         baseline_id: settings.cli_config.baseline_id,

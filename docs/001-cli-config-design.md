@@ -364,6 +364,7 @@ CLI 配置备份目录：
   "cli_config": {
     "baseline_id": "20260703153045-a1b2c3",
     "backup_root": "C:\\Users\\me\\.TestModelAlive\\cli-config-backups",
+    "apply_history_limit": 20,
     "baseline_items": [
       {
         "target": "codex",
@@ -373,35 +374,44 @@ CLI 配置备份目录：
         "backup_path": "C:\\Users\\me\\.TestModelAlive\\cli-config-backups\\codex\\config.toml.20260703153045.bak",
         "created_at": "2026-07-03T15:30:45+08:00"
       }
-    ],
-    "apply_history": [
-      {
-        "apply_id": "20260703160000-d4e5f6",
-        "target": "opencode",
-        "endpoint_id": "codex-20260703153045-001",
-        "created_at": "2026-07-03T16:00:00+08:00",
-        "backup_paths": [
-          "C:\\Users\\me\\.TestModelAlive\\cli-config-backups\\opencode\\opencode.json.20260703160000.bak"
-        ],
-        "files": [
-          {
-            "file_id": "opencode-config",
-            "path": "C:\\Users\\me\\.config\\opencode\\opencode.json",
-            "action": "added"
-          }
-        ]
-      }
     ]
   }
 }
 ```
 
+`~/.TestModelAlive/cli-config-apply-history.json` 保存应用历史：
+
+```json
+{
+  "limit": 20,
+  "items": [
+    {
+      "apply_id": "apply-1780000000000000000",
+      "target": "opencode",
+      "endpoint_id": "codex-20260703153045-001",
+      "created_at": "1780000000000000000",
+      "backup_paths": [
+        "C:\\Users\\me\\.TestModelAlive\\cli-config-backups\\opencode\\opencode.json.1780000000000000000.bak"
+      ],
+      "files": [
+        {
+          "file_id": "opencode-config",
+          "path": "C:\\Users\\me\\.config\\opencode\\opencode.json",
+          "action": "updated"
+        }
+      ]
+    }
+  ]
+}
+```
+
 说明：
 
-- `settings.json` 是应用内配置和备份索引的唯一入口。
+- `settings.json` 是应用内配置和原始基线索引的入口。
+- `cli-config-apply-history.json` 单独保存每次应用配置的操作历史。
 - 真实备份文件仍以独立文件保存在 `cli-config-backups/<target>/` 下，`settings.json` 只保存路径和元数据。
 - 迁移旧提示词设置时，如果旧配置存在而 `settings.json` 缺失，应在启动时读取旧值并写入 `settings.json`。
-- 后续读写提示词设置和 CLI 备份索引时，只读写 `settings.json`。
+- 后续读写提示词设置和 CLI 原始基线索引时，只读写 `settings.json`；应用历史读写 `cli-config-apply-history.json`。
 
 ### 字段定义
 
@@ -430,8 +440,9 @@ CLI 配置备份目录：
 
 - `baseline_id`：原始基线 ID。首次创建 `cli_config` 时生成，后续不变。
 - `backup_root`：备份根目录，默认 `~/.TestModelAlive/cli-config-backups` 展开后的绝对路径。
+- `apply_history_limit`：独立应用历史文件最多保留的记录数，默认 `20`。
 - `baseline_items`：本应用首次修改某个真实 CLI 配置文件前记录的原始状态。
-- `apply_history`：每次应用配置的操作记录，用于展示和排查，不用于决定“一键还原到原始配置”。
+- `apply_history` 不再保存在 `settings.json`；历史记录保存到 `cli-config-apply-history.json`。
 
 `baseline_items[]` 字段：
 
@@ -442,7 +453,7 @@ CLI 配置备份目录：
 - `backup_path`：本应用首次修改前的备份文件路径；`existed_before == false` 时为 `null`。
 - `created_at`：该基线项创建时间。
 
-`apply_history[]` 字段：
+`cli-config-apply-history.json.items[]` 字段：
 
 - `apply_id`：本次应用操作 ID，每次应用生成一次。
 - `target`：本次应用目标工具。
@@ -451,7 +462,7 @@ CLI 配置备份目录：
 - `backup_paths`：本次操作产生的普通备份路径列表。
 - `files`：本次操作涉及的目标文件列表。
 
-`apply_history[].files[]` 字段：
+`cli-config-apply-history.json.items[].files[]` 字段：
 
 - `file_id`：稳定文件 ID。
 - `path`：真实 CLI 配置文件绝对路径。
@@ -485,8 +496,8 @@ CLI 配置备份目录：
   "cli_config": {
     "baseline_id": "",
     "backup_root": "",
-    "baseline_items": [],
-    "apply_history": []
+    "apply_history_limit": 20,
+    "baseline_items": []
   }
 }
 ```
@@ -504,7 +515,7 @@ CLI 配置备份目录：
 - 写入前先确保 `~/.TestModelAlive/` 存在。
 - 写入时先写 `settings.json.tmp`，成功后用平台兼容的 replace 覆盖 `settings.json`。不要直接假设 `std::fs::rename(tmp, target)` 可以覆盖已有文件，因为 Windows 上 rename 到已存在目标通常会失败。
 - 更新 `baseline_items` 时只追加缺失项，不覆盖已有 `target + file_id + path` 项。
-- 更新 `apply_history` 时追加新记录。为避免文件无限增长，可后续限制最多保留最近 100 条；初版可不截断。
+- 更新 `cli-config-apply-history.json` 时追加新记录，并按 `settings.json.cli_config.apply_history_limit` 裁剪。
 
 ## 备份与原始基线策略
 
@@ -544,7 +555,7 @@ OpenCode 虽然是新增接入点，不替换整个配置语义，但仍会修�
 
 原始配置基线用于“一键还原到本应用修改前的最原始配置”，必须保存到 `~/.TestModelAlive/settings.json` 的 `cli_config.baseline_items`，不能只依赖用户记住 `.bak` 路径。
 
-`settings.json` 中的 `cli_config.baseline_items` 是一键还原的唯一依据。它按目标文件保存本应用首次修改前的状态，后续应用不能覆盖已有 item。每次应用仍可写入 `cli_config.apply_history`，用于展示本次备份路径和排查问题，但不能作为“一键还原到原始配置”的依据。
+`settings.json` 中的 `cli_config.baseline_items` 是一键还原的唯一依据。它按目标文件保存本应用首次修改前的状态，后续应用不能覆盖已有 item。每次应用仍可写入 `cli-config-apply-history.json`，用于展示本次备份路径和排查问题，但不能作为“一键还原到原始配置”的依据。
 
 `baseline_id` 建议在 `settings.json.cli_config` 首次创建时生成，使用时间戳加短随机串，例如 `20260703153045-a1b2c3`。`apply_id` 每次应用生成一次。
 
@@ -578,7 +589,7 @@ OpenCode 虽然是新增接入点，不替换整个配置语义，但仍会修�
 2. 读取或创建 `~/.TestModelAlive/settings.json`。
 3. 对每个目标文件检查 `cli_config.baseline_items` 中是否已有相同 `target + file_id + path` 的 item。
 4. 如果没有 item，说明这是本应用第一次修改该目标文件：先备份当前目标文件到 `cli-config-backups/<target>/`，再将 `target`、`file_id`、`path`、`existed_before`、`backup_path`、`created_at` 写入 `settings.json`。
-5. 如果已有 item，说明原始配置已记录，不能覆盖该 item；本次应用只创建普通操作备份并写入 `cli_config.apply_history`。
+5. 如果已有 item，说明原始配置已记录，不能覆盖该 item；本次应用只创建普通操作备份并写入 `cli-config-apply-history.json`。
 6. 保存 `settings.json`。
 7. 执行 Codex/Claude/OpenCode 配置修改。
 

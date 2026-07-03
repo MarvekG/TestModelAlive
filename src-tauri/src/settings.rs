@@ -7,7 +7,10 @@ use time::OffsetDateTime;
 use crate::models::{
     EndpointStore, SavedEndpoint, TestSettings, DEFAULT_PROMPT, DEFAULT_SUCCESS_KEYWORD,
 };
-use crate::paths::{app_data_dir, store_path, APP_SETTINGS_FILE, DATA_FILE, TEST_SETTINGS_FILE};
+use crate::paths::{
+    app_data_dir, store_path, APP_SETTINGS_FILE, CLI_APPLY_HISTORY_FILE, DATA_FILE,
+    TEST_SETTINGS_FILE,
+};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AppSettings {
@@ -28,7 +31,16 @@ pub struct CliConfigSettings {
     #[serde(default = "default_apply_history_limit")]
     pub apply_history_limit: usize,
     pub baseline_items: Vec<CliConfigBaselineItem>,
+    #[serde(default, skip_serializing)]
     pub apply_history: Vec<CliConfigApplyHistoryItem>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CliConfigApplyHistoryStore {
+    #[serde(default = "default_apply_history_limit")]
+    pub limit: usize,
+    #[serde(default)]
+    pub items: Vec<CliConfigApplyHistoryItem>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -111,10 +123,12 @@ pub fn read_app_settings(app: &tauri::AppHandle) -> Result<AppSettings, String> 
         default_app_settings(app)?
     };
     migrate_legacy_into_settings(app, &mut settings)?;
+    let migrated_apply_history = migrate_apply_history_out_of_settings(app, &mut settings)?;
     normalize_app_settings(app, &mut settings)?;
     if !path.exists()
         || settings.endpoints.is_empty()
         || is_default_test_settings(&settings.test_settings)
+        || migrated_apply_history
     {
         write_app_settings(&path, &settings)?;
     }
@@ -131,6 +145,32 @@ pub fn write_app_settings_for_app(
 pub fn write_app_settings(path: &Path, settings: &AppSettings) -> Result<(), String> {
     let text = serde_json::to_string_pretty(settings).map_err(|err| err.to_string())?;
     write_text_file(path, &format!("{text}\n"))
+}
+
+pub fn read_apply_history_store(
+    app: &tauri::AppHandle,
+) -> Result<CliConfigApplyHistoryStore, String> {
+    let path = store_path(app, CLI_APPLY_HISTORY_FILE)?;
+    if !path.exists() {
+        return Ok(default_apply_history_store());
+    }
+    let text = fs::read_to_string(&path).map_err(|err| err.to_string())?;
+    let mut store: CliConfigApplyHistoryStore =
+        serde_json::from_str(&text).map_err(|err| err.to_string())?;
+    if store.limit == 0 {
+        store.limit = default_apply_history_limit();
+    }
+    trim_apply_history_store(&mut store);
+    Ok(store)
+}
+
+pub fn write_apply_history_store(
+    app: &tauri::AppHandle,
+    store: &CliConfigApplyHistoryStore,
+) -> Result<(), String> {
+    let path = store_path(app, CLI_APPLY_HISTORY_FILE)?;
+    let text = serde_json::to_string_pretty(store).map_err(|err| err.to_string())?;
+    write_text_file(&path, &format!("{text}\n"))
 }
 
 pub fn write_text_file(path: &Path, content: &str) -> Result<(), String> {
@@ -179,6 +219,13 @@ fn default_cli_config_settings() -> CliConfigSettings {
     }
 }
 
+fn default_apply_history_store() -> CliConfigApplyHistoryStore {
+    CliConfigApplyHistoryStore {
+        limit: default_apply_history_limit(),
+        items: Vec::new(),
+    }
+}
+
 fn default_apply_history_limit() -> usize {
     20
 }
@@ -224,16 +271,33 @@ fn normalize_app_settings(
     if settings.cli_config.apply_history_limit == 0 {
         settings.cli_config.apply_history_limit = default_apply_history_limit();
     }
-    trim_apply_history(&mut settings.cli_config);
     Ok(())
 }
 
-pub fn trim_apply_history(cli_config: &mut CliConfigSettings) {
-    let limit = cli_config.apply_history_limit;
-    if limit > 0 && cli_config.apply_history.len() > limit {
-        let drop_count = cli_config.apply_history.len() - limit;
-        cli_config.apply_history.drain(0..drop_count);
+pub fn trim_apply_history_store(store: &mut CliConfigApplyHistoryStore) {
+    if store.limit > 0 && store.items.len() > store.limit {
+        let drop_count = store.items.len() - store.limit;
+        store.items.drain(0..drop_count);
     }
+}
+
+fn migrate_apply_history_out_of_settings(
+    app: &tauri::AppHandle,
+    settings: &mut AppSettings,
+) -> Result<bool, String> {
+    if settings.cli_config.apply_history.is_empty() {
+        return Ok(false);
+    }
+    let mut store = read_apply_history_store(app)?;
+    if store.items.is_empty() {
+        store.items = std::mem::take(&mut settings.cli_config.apply_history);
+    } else {
+        store.items.append(&mut settings.cli_config.apply_history);
+    }
+    store.limit = settings.cli_config.apply_history_limit;
+    trim_apply_history_store(&mut store);
+    write_apply_history_store(app, &store)?;
+    Ok(true)
 }
 
 fn normalize_test_settings(settings: &mut TestSettings) {
