@@ -108,6 +108,10 @@ The success condition is configurable:
 - macOS and Linux include common CLI search paths such as `/usr/local/bin`, `/opt/homebrew/bin`, and `~/.local/bin`.
 - Cross-compiling Tauri apps can require platform-specific SDKs and resource compilers beyond Rust targets.
 
+## Friend Links
+
+- [LINUX DO](https://linux.do/)
+
 ## Security
 
 API keys are stored in plaintext inside `~/.TestModelAlive/tma_endpoints.json`.

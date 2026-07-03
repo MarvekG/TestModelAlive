@@ -108,6 +108,10 @@ Windows 下对应：
 - macOS 和 Linux 会额外查找 `/usr/local/bin`、`/opt/homebrew/bin`、`~/.local/bin` 等常见 CLI 路径。
 - Tauri 跨平台打包可能需要对应平台的 SDK、资源编译器或系统依赖，仅安装 Rust target 不一定足够。
 
+## 友链
+
+- [LINUX DO](https://linux.do/)
+
 ## 安全提醒
 
 API Key 会以明文形式保存在 `~/.TestModelAlive/tma_endpoints.json`。
