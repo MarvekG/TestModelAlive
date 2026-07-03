@@ -7,6 +7,8 @@ export function getElements() {
     baseUrl: byId<HTMLInputElement>("base-url"),
     apiKey: byId<HTMLInputElement>("api-key"),
     fetchTimeout: byId<HTMLInputElement>("fetch-timeout"),
+    endpointFilterText: byId<HTMLInputElement>("endpoint-filter-text"),
+    endpointFilterType: byId<HTMLSelectElement>("endpoint-filter-type"),
     endpointRows: byId<HTMLTableSectionElement>("endpoint-rows"),
     fetchedModelsEl: byId<HTMLDivElement>("fetched-models"),
     testPanel: byId<HTMLElement>("test-panel"),

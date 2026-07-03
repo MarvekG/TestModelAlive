@@ -46,7 +46,16 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
       <div class="card table-card">
         <div class="card-title">
           <h2 id="saved-endpoints-title">${t("savedEndpoints")}</h2>
-          <button id="reload-endpoints" class="secondary">${t("refresh")}</button>
+          <div class="actions compact wrap">
+            <input id="endpoint-filter-text" placeholder="${t("filterEndpoints")}" />
+            <select id="endpoint-filter-type">
+              <option value="all">${t("allTypes")}</option>
+              <option value="codex">Codex</option>
+              <option value="claude">Claude</option>
+              <option value="opencode">OpenCode</option>
+            </select>
+            <button id="reload-endpoints" class="secondary">${t("refresh")}</button>
+          </div>
         </div>
         <div class="table-wrap">
           <table>

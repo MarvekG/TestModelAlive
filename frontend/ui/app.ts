@@ -60,6 +60,8 @@ export function initApp() {
     bind("save-endpoint", "click", saveEndpoint);
     bind("clear-input", "click", clearInput);
     bind("reload-endpoints", "click", loadEndpoints);
+    bind("endpoint-filter-text", "input", renderEndpoints);
+    bind("endpoint-filter-type", "change", renderEndpoints);
     bind("open-test", "click", openTestPanel);
     bind("delete-endpoint", "click", deleteSelectedEndpoint);
     bind("delete-checked", "click", deleteCheckedEndpoints);
@@ -486,9 +488,10 @@ export function initApp() {
   }
 
   function renderEndpoints() {
+    const visibleEndpoints = filteredEndpoints();
     renderEndpointRows({
       root: elements.endpointRows,
-      endpoints,
+      endpoints: visibleEndpoints,
       selectedEndpointId,
       checkedEndpointIds,
       onSelect: (id) => {
@@ -500,7 +503,18 @@ export function initApp() {
   }
 
   function setEndpointChecks(checked: boolean) {
-    updateEndpointChecks(endpoints, checkedEndpointIds, checked, renderEndpoints);
+    updateEndpointChecks(filteredEndpoints(), checkedEndpointIds, checked, renderEndpoints);
+  }
+
+  function filteredEndpoints() {
+    const query = elements.endpointFilterText.value.trim().toLowerCase();
+    const type = elements.endpointFilterType.value;
+    return endpoints.filter((endpoint) => {
+      if (type !== "all" && endpoint.type !== type) return false;
+      if (!query) return true;
+      return [endpoint.name, endpoint.type, endpoint.base_url, ...endpoint.models]
+        .some((value) => value.toLowerCase().includes(query));
+    });
   }
 
   function renderFetchedModels() {
