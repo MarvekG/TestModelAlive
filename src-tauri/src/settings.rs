@@ -1,16 +1,13 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use time::OffsetDateTime;
 
-use crate::models::{
-    EndpointStore, SavedEndpoint, TestSettings, DEFAULT_PROMPT, DEFAULT_SUCCESS_KEYWORD,
-};
-use crate::paths::{
-    app_data_dir, store_path, APP_SETTINGS_FILE, CLI_APPLY_HISTORY_FILE, DATA_FILE,
-    TEST_SETTINGS_FILE,
-};
+use crate::models::{SavedEndpoint, TestSettings, DEFAULT_PROMPT, DEFAULT_SUCCESS_KEYWORD};
+use crate::paths::{app_data_dir, store_path, APP_SETTINGS_FILE, CLI_APPLY_HISTORY_FILE};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AppSettings {
@@ -20,6 +17,8 @@ pub struct AppSettings {
     pub endpoints: Vec<SavedEndpoint>,
     #[serde(default = "default_test_settings")]
     pub test_settings: TestSettings,
+    #[serde(default = "default_opencode_model_variants")]
+    pub opencode_model_variants: BTreeMap<String, Value>,
     #[serde(default = "default_cli_config_settings")]
     pub cli_config: CliConfigSettings,
 }
@@ -116,23 +115,26 @@ pub fn default_test_settings() -> TestSettings {
 
 pub fn read_app_settings(app: &tauri::AppHandle) -> Result<AppSettings, String> {
     let path = store_path(app, APP_SETTINGS_FILE)?;
+    let mut missing_opencode_variants = false;
     let mut settings = if path.exists() {
         let text = fs::read_to_string(&path).map_err(|err| err.to_string())?;
+        missing_opencode_variants = !text.contains("\"opencode_model_variants\"");
         serde_json::from_str::<AppSettings>(&text).map_err(|err| err.to_string())?
     } else {
         default_app_settings(app)?
     };
-    migrate_legacy_into_settings(app, &mut settings)?;
     let migrated_apply_history = migrate_apply_history_out_of_settings(app, &mut settings)?;
     normalize_app_settings(app, &mut settings)?;
-    if !path.exists()
-        || settings.endpoints.is_empty()
-        || is_default_test_settings(&settings.test_settings)
-        || migrated_apply_history
-    {
+    if !path.exists() || missing_opencode_variants || migrated_apply_history {
         write_app_settings(&path, &settings)?;
     }
     Ok(settings)
+}
+
+pub fn read_opencode_model_variants(
+    app: &tauri::AppHandle,
+) -> Result<BTreeMap<String, Value>, String> {
+    Ok(read_app_settings(app)?.opencode_model_variants)
 }
 
 pub fn write_app_settings_for_app(
@@ -230,11 +232,122 @@ fn default_apply_history_limit() -> usize {
     20
 }
 
+fn default_opencode_model_variants() -> BTreeMap<String, Value> {
+    let gpt_variants = serde_json::json!({
+        "none": {},
+        "low": {
+            "reasoningEffort": "low",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "medium": {
+            "reasoningEffort": "medium",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "high": {
+            "reasoningEffort": "high",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "xhigh": {
+            "reasoningEffort": "xhigh",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        }
+    });
+    let gpt_pro_variants = serde_json::json!({
+        "medium": {
+            "reasoningEffort": "medium",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "high": {
+            "reasoningEffort": "high",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "xhigh": {
+            "reasoningEffort": "xhigh",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        }
+    });
+    let generic_reasoning_variants = serde_json::json!({
+        "low": { "reasoningEffort": "low" },
+        "medium": { "reasoningEffort": "medium" },
+        "high": { "reasoningEffort": "high" }
+    });
+    let deepseek_v4_variants = serde_json::json!({
+        "low": { "reasoningEffort": "low" },
+        "medium": { "reasoningEffort": "medium" },
+        "high": { "reasoningEffort": "high" },
+        "max": { "reasoningEffort": "max" }
+    });
+    let glm_variants = serde_json::json!({
+        "high": { "reasoningEffort": "high" },
+        "max": { "reasoningEffort": "max" }
+    });
+    let minimax_m3_variants = serde_json::json!({
+        "none": { "thinking": { "type": "disabled" } },
+        "thinking": { "thinking": { "type": "adaptive" } }
+    });
+    let north_mini_code_variants = serde_json::json!({
+        "none": { "reasoningEffort": "none" },
+        "high": { "reasoningEffort": "high" }
+    });
+    let empty_variants = serde_json::json!({});
+    [
+        ("gpt-5.4", gpt_variants.clone()),
+        ("gpt-5.4-pro", gpt_pro_variants.clone()),
+        ("gpt-5.4-mini", gpt_variants.clone()),
+        ("gpt-5.4-nano", gpt_variants.clone()),
+        ("gpt-5.5", gpt_variants.clone()),
+        ("gpt-5.5-pro", gpt_pro_variants),
+        ("claude-fable-5", generic_reasoning_variants.clone()),
+        ("claude-opus-4-8", generic_reasoning_variants.clone()),
+        ("claude-opus-4-7", generic_reasoning_variants.clone()),
+        ("claude-opus-4-6", generic_reasoning_variants.clone()),
+        ("claude-opus-4-5", generic_reasoning_variants.clone()),
+        ("claude-sonnet-5", generic_reasoning_variants.clone()),
+        ("claude-sonnet-4-6", generic_reasoning_variants.clone()),
+        ("claude-sonnet-4-5", generic_reasoning_variants.clone()),
+        ("claude-haiku-4-5", generic_reasoning_variants.clone()),
+        ("gemini-3.5-flash", generic_reasoning_variants.clone()),
+        ("gemini-3.1-pro", generic_reasoning_variants.clone()),
+        ("gemini-3-flash", generic_reasoning_variants.clone()),
+        ("deepseek-v4-pro", deepseek_v4_variants.clone()),
+        ("deepseek-v4-flash", deepseek_v4_variants),
+        ("glm-5.2", glm_variants.clone()),
+        ("glm-5.1", empty_variants.clone()),
+        ("glm-5", empty_variants.clone()),
+        ("kimi-k2.7-code", empty_variants.clone()),
+        ("kimi-k2.6", empty_variants.clone()),
+        ("kimi-k2.5", empty_variants.clone()),
+        ("minimax-m3", minimax_m3_variants),
+        ("minimax-m2.7", empty_variants.clone()),
+        ("minimax-m2.5", empty_variants.clone()),
+        ("qwen3.7-max", empty_variants.clone()),
+        ("qwen3.7-plus", empty_variants.clone()),
+        ("qwen3.6-plus", empty_variants.clone()),
+        ("qwen3.5-plus", empty_variants.clone()),
+        ("grok-build-0.1", empty_variants.clone()),
+        ("big-pickle", empty_variants.clone()),
+        ("mimo-v2.5-free", empty_variants.clone()),
+        ("nemotron-3-ultra-free", empty_variants.clone()),
+        ("north-mini-code-free", north_mini_code_variants),
+    ]
+    .into_iter()
+    .map(|(model, params)| (model.to_string(), params))
+    .collect()
+}
+
 fn default_app_settings(app: &tauri::AppHandle) -> Result<AppSettings, String> {
     Ok(AppSettings {
         version: 1,
         endpoints: Vec::new(),
         test_settings: default_test_settings(),
+        opencode_model_variants: default_opencode_model_variants(),
         cli_config: CliConfigSettings {
             baseline_id: timestamp_id("baseline"),
             backup_root: app_data_dir(app)?
@@ -310,66 +423,12 @@ fn normalize_test_settings(settings: &mut TestSettings) {
     }
 }
 
-fn migrate_legacy_into_settings(
-    app: &tauri::AppHandle,
-    settings: &mut AppSettings,
-) -> Result<(), String> {
-    if settings.endpoints.is_empty() {
-        if let Some(store) = read_legacy_endpoint_store(app)? {
-            settings.endpoints = store
-                .endpoints
-                .into_iter()
-                .filter(|endpoint| {
-                    !endpoint.id.is_empty()
-                        && is_valid_endpoint_name(&endpoint.name)
-                        && is_valid_endpoint_type(&endpoint.endpoint_type)
-                        && !endpoint.endpoint_type.is_empty()
-                        && !endpoint.base_url.is_empty()
-                })
-                .collect();
-        }
-    }
-    if is_default_test_settings(&settings.test_settings) {
-        if let Some(mut test_settings) = read_legacy_test_settings(app)? {
-            normalize_test_settings(&mut test_settings);
-            settings.test_settings = test_settings;
-        }
-    }
-    Ok(())
-}
-
 fn is_valid_endpoint_name(name: &str) -> bool {
     !name.is_empty() && name.chars().all(|ch| ch.is_ascii_alphanumeric())
 }
 
 fn is_valid_endpoint_type(endpoint_type: &str) -> bool {
     matches!(endpoint_type, "codex" | "claude" | "opencode")
-}
-
-fn read_legacy_endpoint_store(app: &tauri::AppHandle) -> Result<Option<EndpointStore>, String> {
-    let path = store_path(app, DATA_FILE)?;
-    if !path.exists() {
-        return Ok(None);
-    }
-    let text = fs::read_to_string(path).map_err(|err| err.to_string())?;
-    Ok(Some(
-        serde_json::from_str(&text).map_err(|err| err.to_string())?,
-    ))
-}
-
-fn read_legacy_test_settings(app: &tauri::AppHandle) -> Result<Option<TestSettings>, String> {
-    let path = store_path(app, TEST_SETTINGS_FILE)?;
-    if !path.exists() {
-        return Ok(None);
-    }
-    let text = fs::read_to_string(path).map_err(|err| err.to_string())?;
-    Ok(Some(
-        serde_json::from_str(&text).map_err(|err| err.to_string())?,
-    ))
-}
-
-fn is_default_test_settings(settings: &TestSettings) -> bool {
-    settings.prompt == DEFAULT_PROMPT && settings.success_keyword == DEFAULT_SUCCESS_KEYWORD
 }
 
 #[allow(dead_code)]

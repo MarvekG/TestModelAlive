@@ -22,7 +22,7 @@
 - `claude` 类型凭证：可应用到 Claude。
 - `opencode` 类型凭证：可应用到 OpenCode。
 - Codex 和 Claude 都写入对应 CLI 配置文件，写入前备份。Codex 的 `auth.json` 预览当前只生成 `OPENAI_API_KEY` 基础结构；`config.toml` 在原配置基础上合并。
-- OpenCode 是按端点名称新增 provider，不替换已有 provider；如果同名 provider 已存在则预览失败，用户需要先改端点名或移除旧 provider。
+- OpenCode 是按端点名称写入 provider；如果同名 provider 已存在，必须先提示用户确认覆盖。
 
 应用自身配置统一集中到 `~/.TestModelAlive/settings.json`，包括端点数据、测试提示词设置、CLI 配置备份索引和原始基线信息。真实 CLI 配置备份文件统一保存到 `~/.TestModelAlive/` 下的子目录，不散落在 CLI 原配置目录旁边。
 
@@ -36,7 +36,7 @@
 - 根据端点类型展示可用应用按钮：`codex` 展示 Codex，`claude` 展示 Claude，`opencode` 展示 OpenCode。
 - 写入真实 CLI 配置前显示编辑确认弹窗，展示即将写入的新配置内容，允许用户修改，确认后才执行备份和替换。
 - 对目标配置文件做 `baseline` 或 `apply` 备份后写入。Codex `config.toml`、Claude JSON、OpenCode JSON/JSONC 会在可解析时合并；Codex `auth.json` 当前预览为基础 JSON。
-- `opencode` 使用端点名称作为 provider key 新增入口，不覆盖同名 provider。
+- `opencode` 使用端点名称作为 provider key 写入入口；同名 provider 只有在用户确认后才允许覆盖。
 - 每个目标文件首次被本应用修改前创建原始配置基线，记录原文件路径、备份路径、原文件是否存在等信息。
 - 提供“一键还原”能力，可以基于原始配置基线恢复到本应用修改前的最原始配置状态；后续在应用内无论修改多少次，都不覆盖该基线。
 - 应用配置集中写入 `~/.TestModelAlive/settings.json`，包括原有提示词设置和 CLI 备份路径。
@@ -138,6 +138,11 @@ struct CliConfigPreview {
     endpoint_type: String,
     target: String,
     files: Vec<CliConfigPreviewFile>,
+    warnings: Vec<CliConfigPreviewWarning>,
+}
+
+enum CliConfigPreviewWarning {
+    OpenCodeProviderOverwrite { provider: String },
 }
 
 #[derive(Debug, Serialize)]
@@ -808,8 +813,8 @@ OpenCode 的目标是“新增入口”，因此不能重写整个配置。推�
 - 如果文件不存在，创建基础 JSON 配置。
 - 如果文件存在，先解析原配置并追加入口。
 - 新入口 key 使用当前端点名称 `endpoint.name`。
-- 如果同名 provider 已存在，不覆盖原入口，直接返回错误：`OpenCode provider '<name>' already exists`。
-- 用户可通过修改端点名称或使用“从 OpenCode 移除”先删除匹配 provider 后再应用。
+- 如果同名 provider 已存在，预览中覆盖该入口，并返回 `OpenCodeProviderOverwrite` warning。
+- 前端必须在展示写入预览前要求用户确认覆盖；用户取消则不继续应用。
 
 建议写入结构：
 
@@ -1043,7 +1048,7 @@ src-tauri/src/
 - `models.rs`：共享数据结构，例如 `SavedEndpoint`、`TestSettings`、`TestResult`、通用返回结构。
 - `paths.rs`：`~/.TestModelAlive`、真实 CLI 配置路径、备份目录、路径展开等。
 - `settings.rs`：`~/.TestModelAlive/settings.json` 的读写、默认值、版本迁移、原子写入。
-- `endpoints.rs`：端点增删改查，后续从旧 `tma_endpoints.json` 迁移到 `settings.json`。
+- `endpoints.rs`：端点增删改查，数据写入 `settings.json`。
 - `test_runner/mod.rs`：测试模型的公共调度。
 - `test_runner/codex.rs`：Codex 测试临时配置和命令执行。
 - `test_runner/claude.rs`：Claude 测试临时 settings 和命令执行。

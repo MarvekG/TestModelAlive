@@ -7,10 +7,12 @@ use crate::cli_config::types::{
 };
 use crate::models::SavedEndpoint;
 use crate::paths::cli_target_files;
+use crate::settings::read_opencode_model_variants;
 
 use super::{claude, codex, opencode};
 
 pub(crate) fn build_preview(
+    app: &tauri::AppHandle,
     endpoint: SavedEndpoint,
     target: CliConfigTargetKind,
     selected_models: Vec<String>,
@@ -18,6 +20,7 @@ pub(crate) fn build_preview(
 ) -> Result<CliConfigPreview, String> {
     validate_cli_target(&endpoint, &target, &selected_models)?;
     let files = cli_target_files(&target)?;
+    let mut warnings = Vec::new();
     let files = match target {
         CliConfigTargetKind::Codex => {
             codex::build_codex_preview(&endpoint, &selected_models[0], &files)?
@@ -26,13 +29,23 @@ pub(crate) fn build_preview(
             claude::build_claude_preview(&endpoint, &selected_models[0], &files)?
         }
         CliConfigTargetKind::Opencode => {
-            opencode::build_opencode_preview(&endpoint, &selected_models, &files, default_model)?
+            let model_variants = read_opencode_model_variants(app)?;
+            let (files, preview_warnings) = opencode::build_opencode_preview_with_warnings(
+                &endpoint,
+                &selected_models,
+                &files,
+                default_model,
+                &model_variants,
+            )?;
+            warnings = preview_warnings;
+            files
         }
     };
     Ok(CliConfigPreview {
         endpoint_type: endpoint.endpoint_type,
         target: target.as_str().to_string(),
         files,
+        warnings,
     })
 }
 

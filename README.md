@@ -51,6 +51,7 @@ TestModelAlive 是一个 Tauri 桌面应用，用于管理 Codex / Claude / Open
 - 根据测试类型安装本机 CLI：
   - Codex 端点需要 `codex`。
   - Claude 端点需要 `claude`。
+  - OpenCode 端点需要 `opencode`。
 
 应用会在 `PATH` 和常见安装位置中查找 CLI，包括 Windows 的 npm 全局路径和 macOS 的 Homebrew 路径。
 
@@ -96,12 +97,12 @@ Windows 下对应：
 
 目录内主要文件包括：
 
-- `tma_endpoints.json`：已保存端点和模型列表。
-- `test_settings.json`：测试提示词和成功匹配关键词。
+- `settings.json`：已保存端点、模型列表、测试设置和 CLI 配置还原基线。
+- `cli-config-apply-history.json`：CLI 配置应用历史。
 - `claude-settings.json`：测试 Claude CLI 时生成的临时 settings 文件，每次测试会直接覆盖，保留用于排查问题。
 - `codex-home/`：测试 Codex CLI 时使用的独立 Codex home。
-
-如果当前工作目录存在旧版 `tma_endpoints.json` 或 `test_settings.json`，应用首次使用时会复制到 `~/.TestModelAlive/`。
+- `opencode-home/`：测试 OpenCode CLI 时使用的独立 home。
+- `cli-config-backups/`：应用或还原真实 CLI 配置前生成的备份。
 
 ## 模型测试
 
@@ -109,6 +110,7 @@ Windows 下对应：
 
 - Codex 测试使用独立 `CODEX_HOME`，路径为 `~/.TestModelAlive/codex-home`。
 - Claude 测试使用 `~/.TestModelAlive/claude-settings.json` 作为 settings 文件。
+- OpenCode 测试使用独立 home，路径为 `~/.TestModelAlive/opencode-home`。
 
 测试弹窗会实时显示 CLI 输出。后端不会再把测试日志镜像输出到终端。
 
@@ -119,9 +121,8 @@ Windows 下对应：
 - 提示词必须明确包含成功关键词，并要求模型输出它。
 - 命令输出中包含成功关键词时，模型会被标记为可用。
 
-## 跨平台说明
+## 平台说明
 
-- Linux 是当前仓库的主要开发环境。
 - Windows 支持 `.cmd` / `.bat` CLI shim，并通过 `taskkill /T /F` 终止进程树。
 - macOS 和 Linux 会额外查找 `/usr/local/bin`、`/opt/homebrew/bin`、`~/.local/bin` 等常见 CLI 路径。
 - Tauri 跨平台打包可能需要对应平台的 SDK、资源编译器或系统依赖，仅安装 Rust target 不一定足够。
@@ -132,6 +133,6 @@ Windows 下对应：
 
 ## 安全提醒
 
-API Key 会以明文形式保存在 `~/.TestModelAlive/tma_endpoints.json`。
+API Key 会以明文形式保存在 `~/.TestModelAlive/settings.json`，应用到本机 CLI 后也会写入对应 CLI 配置。
 
 不要提交或公开运行时数据文件。相关本地数据文件已加入 `.gitignore`。

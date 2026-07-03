@@ -15,12 +15,6 @@ pub struct SavedEndpoint {
     pub models: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct EndpointStore {
-    pub version: u8,
-    pub endpoints: Vec<SavedEndpoint>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct AddEndpointRequest {
     pub name: String,

@@ -1,11 +1,9 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tauri::Manager;
 
 use crate::cli_config::types::CliConfigTargetKind;
 
-pub const DATA_FILE: &str = "tma_endpoints.json";
-pub const TEST_SETTINGS_FILE: &str = "test_settings.json";
 pub const APP_SETTINGS_FILE: &str = "settings.json";
 pub const CLI_APPLY_HISTORY_FILE: &str = "cli-config-apply-history.json";
 
@@ -13,10 +11,6 @@ pub fn store_path(app: &tauri::AppHandle, file_name: &str) -> Result<PathBuf, St
     let dir = app_data_dir(app)?;
     fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
     let path = dir.join(file_name);
-    let legacy_path = Path::new(file_name);
-    if !path.exists() && legacy_path.exists() {
-        fs::copy(legacy_path, &path).map_err(|err| err.to_string())?;
-    }
     Ok(path)
 }
 

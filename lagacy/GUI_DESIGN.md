@@ -58,14 +58,14 @@ python3 -m pip install PyQt6
 数据文件：
 
 ```text
-tma_endpoints.json
+settings.json
 ```
 
-`tma_endpoints.json` 位于当前工作目录。建议从 `lagacy/` 目录运行 GUI 和 CLI，这样配置文件会保存在 `lagacy/tma_endpoints.json`。GUI 启动时读取该文件；保存、删除或更新端点后写回该文件。两个 CLI 脚本也默认读取该文件，并按 `type` 过滤出各自端点。
+GUI 和 CLI 默认读取 `~/.TestModelAlive/settings.json`；如果该文件不存在，则读取当前目录的 `settings.json`。GUI 启动时读取该文件；保存、删除或更新端点后写回该文件。两个 CLI 脚本也默认读取该文件，并按 `type` 过滤出各自端点。
 
 ## 数据结构
 
-`tma_endpoints.json` 格式：
+`settings.json` 格式：
 
 ```json
 {
@@ -145,14 +145,14 @@ sk-1234...abcd
 6. 成功后在“已拉取模型”区域展示模型复选框。
 7. 用户勾选需要保存的模型。
 8. 用户点击“保存端点”。
-9. GUI 将端点写入 `tma_endpoints.json`。
+9. GUI 将端点写入 `settings.json`。
 10. 已保存端点列表刷新。
 
 ## CLI 读取规则
 
-`tma_codex_models.py` 默认读取 `tma_endpoints.json`，只使用 `type` 为 `codex` 的端点。
+`tma_codex_models.py` 默认读取 `settings.json`，只使用 `type` 为 `codex` 的端点。
 
-`tma_claude_models.py` 默认读取 `tma_endpoints.json`，只使用 `type` 为 `claude` 的端点。
+`tma_claude_models.py` 默认读取 `settings.json`，只使用 `type` 为 `claude` 的端点。
 
 两个脚本仍保留参数名：
 
@@ -417,18 +417,18 @@ JSON 文件读取失败时，GUI 应弹窗提示，并允许用户选择：
 
 ## 安全说明
 
-第一版会把 API Key 明文写入当前目录的 `tma_endpoints.json`。
+第一版会把 API Key 明文写入 `settings.json`。
 
 要求：
 
-- `tma_endpoints.json` 必须加入 `.gitignore`。
+- `settings.json` 必须加入 `.gitignore`。
 - GUI 列表中不显示完整 API Key。
 - 日志中默认不打印完整 API Key。
 
 ## 实现步骤
 
 1. 新增 `tma_gui.py`。
-2. 实现 `EndpointStore`，负责读写 `tma_endpoints.json`。
+2. 实现 `EndpointStore`，负责读写 `settings.json`。
 3. 实现主窗口布局。
 4. 实现模型拉取。
 5. 实现模型复选列表。
