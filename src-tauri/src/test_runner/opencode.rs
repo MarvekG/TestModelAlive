@@ -3,14 +3,13 @@ use std::fs;
 use crate::models::SavedEndpoint;
 use crate::paths::app_data_dir;
 use crate::test_runner::process::TestCommand;
-use crate::test_runner::TestGuards;
 
 pub(crate) fn prepare_opencode(
     app: &tauri::AppHandle,
     endpoint: &SavedEndpoint,
     model: &str,
     prompt: &str,
-) -> Result<(TestCommand, TestGuards), String> {
+) -> Result<TestCommand, String> {
     let opencode_home = app_data_dir(app)?.join("opencode-home");
     let config_path = opencode_home
         .join(".config")
@@ -41,29 +40,26 @@ pub(crate) fn prepare_opencode(
         ),
     )
     .map_err(|err| err.to_string())?;
-    Ok((
-        TestCommand {
-            program: "opencode".to_string(),
-            args: vec![
-                "run".to_string(),
-                "--model".to_string(),
-                format!("{}/{model}", endpoint.name),
-                prompt.to_string(),
-            ],
-            envs: vec![
-                (
-                    "HOME".to_string(),
-                    opencode_home.to_string_lossy().to_string(),
-                ),
-                (
-                    "USERPROFILE".to_string(),
-                    opencode_home.to_string_lossy().to_string(),
-                ),
-            ],
-            env_remove: Vec::new(),
-        },
-        Vec::new(),
-    ))
+    Ok(TestCommand {
+        program: "opencode".to_string(),
+        args: vec![
+            "run".to_string(),
+            "--model".to_string(),
+            format!("{}/{model}", endpoint.name),
+            prompt.to_string(),
+        ],
+        envs: vec![
+            (
+                "HOME".to_string(),
+                opencode_home.to_string_lossy().to_string(),
+            ),
+            (
+                "USERPROFILE".to_string(),
+                opencode_home.to_string_lossy().to_string(),
+            ),
+        ],
+        env_remove: Vec::new(),
+    })
 }
 
 pub(crate) fn real_config_command(provider: &str, model: &str, prompt: &str) -> TestCommand {

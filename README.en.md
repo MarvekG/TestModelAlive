@@ -80,7 +80,7 @@ Files stored there include:
 
 - `tma_endpoints.json`: saved endpoints and model lists.
 - `test_settings.json`: test prompt and success keyword.
-- `claude-settings.json`: temporary Claude CLI settings used during tests.
+- `claude-settings.json`: temporary Claude CLI settings created during tests, overwritten on each test, and kept for troubleshooting.
 - `codex-home/`: isolated Codex home used during tests.
 
 If old `tma_endpoints.json` or `test_settings.json` files exist in the current working directory, the app copies them into `~/.TestModelAlive/` on first use.

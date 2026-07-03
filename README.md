@@ -80,7 +80,7 @@ Windows 下对应：
 
 - `tma_endpoints.json`：已保存端点和模型列表。
 - `test_settings.json`：测试提示词和成功匹配关键词。
-- `claude-settings.json`：测试 Claude CLI 时生成的临时 settings 文件。
+- `claude-settings.json`：测试 Claude CLI 时生成的临时 settings 文件，每次测试会直接覆盖，保留用于排查问题。
 - `codex-home/`：测试 Codex CLI 时使用的独立 Codex home。
 
 如果当前工作目录存在旧版 `tma_endpoints.json` 或 `test_settings.json`，应用首次使用时会复制到 `~/.TestModelAlive/`。

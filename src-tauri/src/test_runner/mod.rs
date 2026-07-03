@@ -12,9 +12,7 @@ pub(crate) mod process;
 
 use crate::cli_config::types::CliConfigTargetKind;
 use crate::models::{SavedEndpoint, TestMessage, TestModelsRequest, TestResult};
-use process::{
-    emit_test_log, run_command, stop_requested, terminate_child, RestorableFile, TestCommand,
-};
+use process::{emit_test_log, run_command, stop_requested, terminate_child, TestCommand};
 
 #[derive(Default)]
 pub struct AppState {
@@ -197,7 +195,7 @@ fn run_model_test(
     success_keyword: &str,
 ) -> Result<TestResult, String> {
     let start = Instant::now();
-    let (command, guards) = match endpoint.endpoint_type.as_str() {
+    let command = match endpoint.endpoint_type.as_str() {
         "codex" => codex::prepare_codex(app, endpoint, model, prompt)?,
         "claude" => claude::prepare_claude(app, endpoint, model, prompt)?,
         "opencode" => opencode::prepare_opencode(app, endpoint, model, prompt)?,
@@ -209,7 +207,6 @@ fn run_model_test(
         }
     };
     let (status, detail) = run_command(app, on_event, state, command, timeout, success_keyword)?;
-    drop(guards);
     Ok(TestResult {
         model: model.to_string(),
         status,
@@ -262,5 +259,3 @@ fn validate_real_cli_test_request(request: &RealCliTestRequest) -> Result<(), St
     }
     Ok(())
 }
-
-pub(crate) type TestGuards = Vec<RestorableFile>;
