@@ -224,8 +224,8 @@ export function initApp() {
     elements.testStatus.textContent = t("notStarted");
     elements.append1mLabel.classList.toggle("hidden", endpoint.type !== "claude");
     elements.applyCodex.classList.toggle("hidden", endpoint.type !== "codex");
-    elements.applyOpenCode.classList.toggle("hidden", endpoint.type !== "codex");
-    elements.removeOpenCode.classList.toggle("hidden", endpoint.type !== "codex");
+    elements.applyOpenCode.classList.toggle("hidden", endpoint.type !== "opencode");
+    elements.removeOpenCode.classList.toggle("hidden", endpoint.type !== "opencode");
     elements.applyClaude.classList.toggle("hidden", endpoint.type !== "claude");
     renderTestModels();
     renderResults();
@@ -289,9 +289,13 @@ export function initApp() {
       await showAlert(t("testModels"), t("testStillRunning"));
       return;
     }
-    const target: CliConfigTargetKind = testEndpoint.type === "claude" ? "claude" : "codex";
+    const target: CliConfigTargetKind = testEndpoint.type;
     const models = selectedTestModels();
-    if (models.length !== 1) {
+    if (target === "opencode" && models.length === 0) {
+      await showAlert(cliTargetLabel(target), t("selectAtLeastOneModelForOpenCode"));
+      return;
+    }
+    if (target !== "opencode" && models.length !== 1) {
       await showAlert(cliTargetLabel(target), t("selectExactlyOneModelForCli"));
       return;
     }
@@ -324,7 +328,7 @@ export function initApp() {
       await showAlert(t("testModels"), t("testStillRunning"));
       return;
     }
-    if (testEndpoint.type !== "codex") return;
+    if (testEndpoint.type !== "opencode") return;
     setApplyBusy(true);
     try {
       const preview = await buildRemoveOpenCodeConfigPreviewApi(testEndpoint);

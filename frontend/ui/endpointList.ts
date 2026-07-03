@@ -3,7 +3,9 @@ import { escapeAttr, escapeHtml } from "../utils/dom";
 import { maskKey } from "../utils/mask";
 
 export function endpointTypeLabel(type: EndpointType) {
-  return type === "codex" ? "Codex" : "Claude";
+  if (type === "codex") return "Codex";
+  if (type === "claude") return "Claude";
+  return "OpenCode";
 }
 
 export function renderEndpointRows(options: {

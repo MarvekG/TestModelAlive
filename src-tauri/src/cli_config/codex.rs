@@ -1,11 +1,10 @@
-use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::cli_config::types::CliConfigPreviewFile;
 use crate::models::SavedEndpoint;
 
-use super::preview::{preview_file, read_json_object};
+use super::preview::preview_file;
 
 pub(crate) fn build_codex_preview(
     endpoint: &SavedEndpoint,
@@ -15,8 +14,7 @@ pub(crate) fn build_codex_preview(
     let mut output = Vec::new();
     for (file_id, path, language) in files {
         let content = if file_id == "codex-auth" {
-            let mut value = read_json_object(path)?;
-            value["OPENAI_API_KEY"] = Value::String(endpoint.api_key.clone());
+            let value = serde_json::json!({ "OPENAI_API_KEY": endpoint.api_key });
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&value).map_err(|err| err.to_string())?

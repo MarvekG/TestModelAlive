@@ -34,8 +34,8 @@ pub fn build_remove_opencode_config_preview(
     _app: tauri::AppHandle,
     endpoint: SavedEndpoint,
 ) -> Result<CliConfigPreview, String> {
-    if endpoint.endpoint_type != "codex" {
-        return Err("OpenCode config uses codex-compatible endpoints".to_string());
+    if endpoint.endpoint_type != "opencode" {
+        return Err("OpenCode config requires an opencode endpoint".to_string());
     }
     let target = CliConfigTargetKind::Opencode;
     let files = cli_target_files(&target)?;

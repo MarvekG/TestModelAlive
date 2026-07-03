@@ -1,4 +1,4 @@
-export type EndpointType = "codex" | "claude";
+export type EndpointType = "codex" | "claude" | "opencode";
 export type CliConfigTargetKind = "codex" | "claude" | "opencode";
 
 export interface SavedEndpoint {

@@ -25,6 +25,7 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
           <select id="endpoint-type">
             <option value="codex">codex</option>
             <option value="claude">claude</option>
+            <option value="opencode">opencode</option>
           </select>
         </label>
         <label><span id="base-url-label">${t("url")}</span>

@@ -197,10 +197,16 @@ fn run_model_test(
     success_keyword: &str,
 ) -> Result<TestResult, String> {
     let start = Instant::now();
-    let (command, guards) = if endpoint.endpoint_type == "codex" {
-        codex::prepare_codex(app, endpoint, model, prompt)?
-    } else {
-        claude::prepare_claude(app, endpoint, model, prompt)?
+    let (command, guards) = match endpoint.endpoint_type.as_str() {
+        "codex" => codex::prepare_codex(app, endpoint, model, prompt)?,
+        "claude" => claude::prepare_claude(app, endpoint, model, prompt)?,
+        "opencode" => opencode::prepare_opencode(app, endpoint, model, prompt)?,
+        _ => {
+            return Err(format!(
+                "unsupported endpoint type: {}",
+                endpoint.endpoint_type
+            ))
+        }
     };
     let (status, detail) = run_command(app, on_event, state, command, timeout, success_keyword)?;
     drop(guards);

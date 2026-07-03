@@ -20,6 +20,7 @@ pub fn add_endpoint(
     let name = request.name.trim().to_string();
     validate_endpoint_name(&name)?;
     let endpoint_type = request.endpoint_type.trim().to_string();
+    validate_endpoint_type(&endpoint_type)?;
     let base_url = request.base_url.trim().trim_end_matches('/').to_string();
     let api_key = request.api_key.trim().to_string();
     let models = request
@@ -99,6 +100,13 @@ fn validate_endpoint_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_endpoint_type(endpoint_type: &str) -> Result<(), String> {
+    if matches!(endpoint_type, "codex" | "claude" | "opencode") {
+        return Ok(());
+    }
+    Err("type must be codex, claude, or opencode".to_string())
+}
+
 fn new_id(endpoint_type: &str, endpoints: &[SavedEndpoint]) -> Result<String, String> {
     let now = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
     let stamp = format!(
@@ -120,7 +128,7 @@ fn new_id(endpoint_type: &str, endpoints: &[SavedEndpoint]) -> Result<String, St
 }
 
 fn fetch_endpoint_models(endpoint: &SavedEndpoint, timeout: u64) -> Result<Vec<String>, String> {
-    let url = if endpoint.endpoint_type == "codex" {
+    let url = if matches!(endpoint.endpoint_type.as_str(), "codex" | "opencode") {
         format!("{}/models", endpoint.base_url.trim_end_matches('/'))
     } else if endpoint.base_url.trim_end_matches('/').ends_with("/v1") {
         format!("{}/models", endpoint.base_url.trim_end_matches('/'))
@@ -132,7 +140,7 @@ fn fetch_endpoint_models(endpoint: &SavedEndpoint, timeout: u64) -> Result<Vec<S
         .build()
         .map_err(|err| err.to_string())?;
     let mut request = client.get(&url).header("Accept", "application/json");
-    if endpoint.endpoint_type == "codex" {
+    if matches!(endpoint.endpoint_type.as_str(), "codex" | "opencode") {
         request = request.header("Authorization", format!("Bearer {}", endpoint.api_key));
     } else {
         request = request

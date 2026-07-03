@@ -2,23 +2,25 @@
 
 ## 背景
 
-当前应用已经支持保存 `codex` / `claude` 端点，并在“测试模型”弹窗内用所选端点临时执行 CLI 测试：
+当前应用支持保存 `codex` / `claude` / `opencode` 端点，并在“测试模型”弹窗内用所选端点临时执行 CLI 测试：
 
 - Codex 测试写入隔离目录 `~/.TestModelAlive/codex-home/`，通过 `CODEX_HOME` 指向临时配置。
 - Claude 测试写入 `~/.TestModelAlive/claude-settings.json`，通过 `claude --settings` 指定临时 settings 文件。
-- OpenCode 目前不是端点类型，也没有测试入口。
+- OpenCode 测试写入隔离目录 `~/.TestModelAlive/opencode-home/`，通过临时 `HOME` / `USERPROFILE` 指向临时配置。
 
 新需求是在“测试设置”按钮后面增加按当前端点类型展示的应用按钮，并在主界面增加一个统一的“还原配置”按钮：
 
-- `codex` 类型模型测试页：显示“应用到 Codex”和“应用到 OpenCode”。
+- `codex` 类型模型测试页：显示“应用到 Codex”。
 - `claude` 类型模型测试页：显示“应用到 Claude”。
+- `opencode` 类型模型测试页：显示“应用到 OpenCode”和“从 OpenCode 移除”。
 - 主界面：显示“还原配置”，点击后弹窗勾选需要还原的配置，勾选哪些还原哪些。
 - 配置应用完成后：显示“用当前配置测试”按钮，直接使用本机真实 CLI 配置测试 Codex、Claude、OpenCode，不再使用临时配置。
 
 写入目标仍受端点类型约束：
 
-- `codex` 类型凭证：可应用到 Codex 和 OpenCode。
+- `codex` 类型凭证：可应用到 Codex。
 - `claude` 类型凭证：可应用到 Claude。
+- `opencode` 类型凭证：可应用到 OpenCode。
 - Codex 和 Claude 都是替换对应 CLI 配置文件，替换前备份。
 - OpenCode 是新增接入点，不替换已有配置或已有入口。
 
@@ -31,10 +33,10 @@
 - 在测试模型弹窗的“测试设置”按钮后增加按当前端点类型展示的应用按钮。
 - 在主界面增加一个“还原配置”按钮，通过弹窗勾选需要还原的配置。
 - 使用当前测试弹窗中的端点作为配置来源。
-- 根据端点类型展示可用应用按钮：`codex` 展示 Codex/OpenCode，`claude` 展示 Claude。
+- 根据端点类型展示可用应用按钮：`codex` 展示 Codex，`claude` 展示 Claude，`opencode` 展示 OpenCode。
 - 写入真实 CLI 配置前显示编辑确认弹窗，展示即将写入的新配置内容，允许用户修改，确认后才执行备份和替换。
 - 对 `codex` 和 `claude` 的目标配置文件做时间戳备份后，在原配置基础上修改必要字段。
-- `opencode` 仅允许使用 `codex` 类型端点新增一个可识别的 provider/entry，不覆盖用户已有 provider/entry。
+- `opencode` 使用独立端点新增一个可识别的 provider/entry，不覆盖用户已有 provider/entry。
 - 每个目标文件首次被本应用修改前创建原始配置基线，记录原文件路径、备份路径、原文件是否存在等信息。
 - 提供“一键还原”能力，可以基于原始配置基线恢复到本应用修改前的最原始配置状态；后续在应用内无论修改多少次，都不覆盖该基线。
 - 应用配置集中写入 `~/.TestModelAlive/settings.json`，包括原有提示词设置和 CLI 备份路径。
@@ -48,7 +50,7 @@
 - 不实现导入、删除已有 provider 的 UI。
 - 不实现任意历史备份浏览、差异对比的 UI；初版通过勾选列表选择要还原的配置，并还原到本应用首次修改该配置前的原始状态。
 - 不自动探测或安装 `codex` / `claude` / `opencode` CLI。
-- 不将端点类型扩展为 `opencode`。OpenCode 使用当前端点数据生成配置入口。
+- 新增其他端点类型时应按同一套 fetch/test/apply 分支接入，不复用既有类型。
 - 不写入模型列表。按钮只替换或新增 API URL 和 Key 相关配置。
 - 不加密存储 API Key。目标 CLI 配置本身通常也是明文或可读配置。
 - 不把 `claude` 类型凭证写入 Codex 或 OpenCode。
@@ -65,8 +67,9 @@
 调整为：
 
 ```text
-codex 端点：开始测试 / 停止 / 测试设置 / 应用到 Codex / 应用到 OpenCode / 状态
+codex 端点：开始测试 / 停止 / 测试设置 / 应用到 Codex / 状态
 claude 端点：开始测试 / 停止 / 测试设置 / 应用到 Claude / 状态
+opencode 端点：开始测试 / 停止 / 测试设置 / 应用到 OpenCode / 从 OpenCode 移除 / 状态
 ```
 
 主界面新增：
@@ -80,8 +83,9 @@ claude 端点：开始测试 / 停止 / 测试设置 / 应用到 Claude / 状态
 - 应用按钮文案：中文为“应用到 Codex”、“应用到 Claude”、“应用到 OpenCode”；英文为“Apply to Codex”、“Apply to Claude”、“Apply to OpenCode”。
 - 主界面还原按钮文案：中文为“还原配置”，英文为“Restore Config”。
 - 未打开测试弹窗或没有 `testEndpoint` 时，不展示或禁用应用按钮。
-- 当前端点为 `codex` 时，只展示“应用到 Codex”和“应用到 OpenCode”。
+- 当前端点为 `codex` 时，只展示“应用到 Codex”。
 - 当前端点为 `claude` 时，只展示“应用到 Claude”。
+- 当前端点为 `opencode` 时，只展示“应用到 OpenCode”和“从 OpenCode 移除”。
 - 点击“应用到 Codex”或“应用到 Claude”前，必须且只能勾选一个模型。
 - 点击“应用到 OpenCode”前，必须至少勾选一个模型，允许多选。
 - 点击应用按钮后先生成目标 CLI 的新配置内容，并弹出编辑确认框。
@@ -223,7 +227,7 @@ struct RealCliTestRequest {
 
 - `target == Codex`：只写入 Codex，要求 `endpoint.type == "codex"`。
 - `target == Claude`：只写入 Claude，要求 `endpoint.type == "claude"`。
-- `target == Opencode`：只写入 OpenCode，要求 `endpoint.type == "codex"`。
+- `target == Opencode`：只写入 OpenCode，要求 `endpoint.type == "opencode"`。
 
 应用流程：
 
@@ -795,7 +799,7 @@ requires_openai_auth = true
 
 ## OpenCode 写入方案
 
-仅当当前端点 `type` 为 `codex` 时执行。OpenCode 使用 OpenAI 兼容 provider，因此复用 `codex` 类型凭证；`claude` 类型凭证不写入 OpenCode。
+仅当当前端点 `type` 为 `opencode` 时执行。OpenCode 使用 OpenAI 兼容 provider，但端点类型独立，不复用 `codex` 类型凭证；`claude` 类型凭证不写入 OpenCode。
 
 目标文件：
 
@@ -936,11 +940,11 @@ opencode run --model "testmodelalive/{model}" "{prompt}"
 - `endpoint.api_key.trim()` 不能为空。
 - `base_url` 去掉尾部 `/`。
 - `api_key` 去掉首尾空白。
-- `endpoint.type` 只接受当前已有的 `codex` / `claude`。
+- `endpoint.type` 只接受当前已有的 `codex` / `claude` / `opencode`。
 - `target` 只接受 `codex`、`claude`、`opencode`。
 - `target == "codex"` 时要求 `endpoint.type == "codex"`。
 - `target == "claude"` 时要求 `endpoint.type == "claude"`。
-- `target == "opencode"` 时要求 `endpoint.type == "codex"`。
+- `target == "opencode"` 时要求 `endpoint.type == "opencode"`。
 - `target == "codex"` 时要求 `selected_models.len() == 1`。
 - `target == "claude"` 时要求 `selected_models.len() == 1`。
 - `target == "opencode"` 时要求 `selected_models.len() >= 1`，允许多个模型。
@@ -1144,20 +1148,21 @@ frontend/
 4. 后端实现按 `selected_items` 读取原始基线并恢复配置。
 5. 注册 command 到 `tauri::generate_handler!`。
 6. 前端 i18n 增加按钮、确认、结果和错误文案。
-7. 前端测试控制栏按端点类型展示应用按钮：`codex` 展示 Codex/OpenCode，`claude` 展示 Claude。
+7. 前端测试控制栏按端点类型展示应用按钮：`codex` 展示 Codex，`claude` 展示 Claude，`opencode` 展示 OpenCode。
 8. 前端主界面增加“还原配置”按钮和勾选式还原弹窗。
 9. 前端点击应用按钮后调用 `build_cli_config_preview`，展示可编辑配置内容。
 10. 前端在用户确认后调用 `invoke("apply_cli_config", { endpoint: testEndpoint, target, editedConfig })`。
 11. 前端在应用成功结果弹窗中增加“用当前配置测试”按钮，调用 `test_cli_with_real_config`。
 12. 更新 README 的存储/安全说明。
-13. 手动验证八种场景：`codex` 端点只展示并应用 Codex/OpenCode、`claude` 端点只展示并应用 Claude、应用前可编辑配置内容、目标文件不存在、目标文件存在、OpenCode 配置无法 JSON 解析、勾选还原到本应用首次修改前的原始配置、应用后用真实 CLI 配置测试。
+13. 手动验证八种场景：`codex` 端点只展示并应用 Codex、`claude` 端点只展示并应用 Claude、`opencode` 端点只展示并应用 OpenCode、应用前可编辑配置内容、目标文件不存在、目标文件存在、OpenCode 配置无法 JSON 解析、勾选还原到本应用首次修改前的原始配置、应用后用真实 CLI 配置测试。
 
 ## 测试建议
 
 - Rust 单元测试覆盖路径无关的内容生成函数。
 - 使用临时目录测试备份命名和写入逻辑。
-- 测试 `codex` 端点只展示 Codex/OpenCode 应用按钮。
+- 测试 `codex` 端点只展示 Codex 应用按钮。
 - 测试 `claude` 端点只展示 Claude 应用按钮。
+- 测试 `opencode` 端点只展示 OpenCode 应用按钮。
 - 测试 `build_cli_config_preview` 只生成预览，不写文件、不备份。
 - 测试 `apply_cli_config` 写入用户编辑后的配置内容。
 - 测试 `test_cli_with_real_config` 不设置 `CODEX_HOME`，Claude 不传 `--settings`，OpenCode 不使用临时配置目录。

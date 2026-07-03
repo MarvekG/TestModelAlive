@@ -255,6 +255,7 @@ fn normalize_app_settings(
     settings.endpoints.retain(|endpoint| {
         !endpoint.id.is_empty()
             && is_valid_endpoint_name(&endpoint.name)
+            && is_valid_endpoint_type(&endpoint.endpoint_type)
             && !endpoint.endpoint_type.is_empty()
             && !endpoint.base_url.is_empty()
     });
@@ -321,6 +322,7 @@ fn migrate_legacy_into_settings(
                 .filter(|endpoint| {
                     !endpoint.id.is_empty()
                         && is_valid_endpoint_name(&endpoint.name)
+                        && is_valid_endpoint_type(&endpoint.endpoint_type)
                         && !endpoint.endpoint_type.is_empty()
                         && !endpoint.base_url.is_empty()
                 })
@@ -338,6 +340,10 @@ fn migrate_legacy_into_settings(
 
 fn is_valid_endpoint_name(name: &str) -> bool {
     !name.is_empty() && name.chars().all(|ch| ch.is_ascii_alphabetic())
+}
+
+fn is_valid_endpoint_type(endpoint_type: &str) -> bool {
+    matches!(endpoint_type, "codex" | "claude" | "opencode")
 }
 
 fn read_legacy_endpoint_store(app: &tauri::AppHandle) -> Result<Option<EndpointStore>, String> {

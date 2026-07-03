@@ -58,8 +58,8 @@ pub(crate) fn validate_cli_target(
             }
         }
         CliConfigTargetKind::Opencode => {
-            if endpoint.endpoint_type != "codex" {
-                return Err("OpenCode config uses codex-compatible endpoints".to_string());
+            if endpoint.endpoint_type != "opencode" {
+                return Err("OpenCode config requires an opencode endpoint".to_string());
             }
             if selected_models.is_empty() {
                 return Err("OpenCode config requires at least one selected model".to_string());
