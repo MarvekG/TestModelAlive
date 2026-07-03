@@ -112,8 +112,8 @@ fn validate_endpoint_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("name is required".to_string());
     }
-    if !name.chars().all(|ch| ch.is_ascii_alphabetic()) {
-        return Err("name can only contain English letters".to_string());
+    if !name.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+        return Err("name can only contain English letters and numbers".to_string());
     }
     Ok(())
 }
