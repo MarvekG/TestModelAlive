@@ -1,14 +1,14 @@
-# TSA
+# TMA
 
 用于检查 Codex CLI 和 Claude CLI 是否可以正常调用指定 API 端点和模型 ID 的
 Python 小工具。
 
 ## 文件
 
-- `tsa_codex_models.py`：通过 `codex exec` 测试 OpenAI 兼容端点。
-- `tsa_claude_models.py`：通过 `claude -p` 测试 Anthropic 兼容端点。
-- `tsa_gui.py`：PyQt6 GUI，用于管理端点、拉取模型并测活。
-- `tsa_endpoints.json`：GUI 和 CLI 共用的本地端点配置文件，已被 git 忽略。
+- `tma_codex_models.py`：通过 `codex exec` 测试 OpenAI 兼容端点。
+- `tma_claude_models.py`：通过 `claude -p` 测试 Anthropic 兼容端点。
+- `tma_gui.py`：PyQt6 GUI，用于管理端点、拉取模型并测活。
+- `tma_endpoints.json`：GUI 和 CLI 共用的本地端点配置文件，已被 git 忽略。
 
 ## GUI 用法
 
@@ -22,10 +22,10 @@ python3 -m pip install PyQt6
 
 ```bash
 cd lagacy
-python3 tsa_gui.py
+python3 tma_gui.py
 ```
 
-GUI 会在当前目录读写 `tsa_endpoints.json`，用于保存端点 URL、API Key 和已选择模型。建议从仓库根目录进入 `lagacy/` 后运行 Python 工具，这样本地配置会保存在 `lagacy/tsa_endpoints.json`。
+GUI 会在当前目录读写 `tma_endpoints.json`，用于保存端点 URL、API Key 和已选择模型。建议从仓库根目录进入 `lagacy/` 后运行 Python 工具，这样本地配置会保存在 `lagacy/tma_endpoints.json`。
 该文件包含明文 API Key，已被 `.gitignore` 忽略，请不要提交或公开。
 
 如果 Linux 桌面环境中中文显示为方块或乱码，请先安装中文字体，例如：
@@ -58,7 +58,7 @@ GUI 拉取模型时支持普通 JSON、`gzip` 和 `deflate` 压缩响应。即�
 
 ## 端点配置格式
 
-GUI 和两个 CLI 脚本都读取当前目录的 `tsa_endpoints.json`。建议从 `lagacy/` 目录运行这些脚本。格式如下：
+GUI 和两个 CLI 脚本都读取当前目录的 `tma_endpoints.json`。建议从 `lagacy/` 目录运行这些脚本。格式如下：
 
 ```json
 {
@@ -90,17 +90,17 @@ GUI 和两个 CLI 脚本都读取当前目录的 `tsa_endpoints.json`。建议�
 
 ```bash
 cd lagacy
-python3 tsa_codex_models.py --domain kimi
+python3 tma_codex_models.py --domain kimi
 ```
 
 ```bash
 cd lagacy
-python3 tsa_claude_models.py --domain kimi
+python3 tma_claude_models.py --domain kimi
 ```
 
 ## Codex 脚本参数
 
-- `--api-file PATH`：端点 JSON 文件路径，默认 `tsa_endpoints.json`。
+- `--api-file PATH`：端点 JSON 文件路径，默认 `tma_endpoints.json`。
 - `--codex-dir PATH`：Codex 配置目录，默认 `~/.codex`。
 - `--fetch-timeout SECONDS`：请求 `/models` 的超时时间，默认 30 秒。
 - `--codex-timeout SECONDS`：每次执行 `codex exec` 的超时时间，默认 120 秒。
@@ -117,12 +117,12 @@ python3 tsa_claude_models.py --domain kimi
 
 ```bash
 cd lagacy
-python3 tsa_codex_models.py --domain kimi --models gpt-5.5
+python3 tma_codex_models.py --domain kimi --models gpt-5.5
 ```
 
 ## Claude 脚本参数
 
-- `--claude-file PATH`：端点 JSON 文件路径，默认 `tsa_endpoints.json`。
+- `--claude-file PATH`：端点 JSON 文件路径，默认 `tma_endpoints.json`。
 - `--timeout SECONDS`：每次请求 `/models` 或执行 `claude -p` 的超时时间，默认 120 秒。
 - `--models MODEL1,MODEL2`：当 JSON 端点没有保存模型时使用的模型列表，默认 `claude-opus-4-6`。
 - `--models-check`：先请求 `/models`，只测试请求模型和服务端模型列表的交集。
@@ -137,14 +137,14 @@ python3 tsa_codex_models.py --domain kimi --models gpt-5.5
 
 ```bash
 cd lagacy
-python3 tsa_claude_models.py --domain kimi --models claude-opus-4-6
+python3 tma_claude_models.py --domain kimi --models claude-opus-4-6
 ```
 
 ## 注意事项
 
 脚本和 GUI 运行测试时会临时写入 CLI 配置，并在测试结束、异常、超时或点击停止后恢复原始文件。
 Codex 会临时修改 `~/.codex/auth.json` 和 `~/.codex/config.toml`；Claude 会临时修改当前目录的 `claude-settings.json`。
-端点文件和 `tsa_endpoints.json` 可能包含 API Key，请不要提交或公开这些文件。
+端点文件和 `tma_endpoints.json` 可能包含 API Key，请不要提交或公开这些文件。
 
 ## 友情链接
 

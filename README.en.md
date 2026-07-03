@@ -78,12 +78,12 @@ On Windows this resolves to:
 
 Files stored there include:
 
-- `tsa_endpoints.json`: saved endpoints and model lists.
+- `tma_endpoints.json`: saved endpoints and model lists.
 - `test_settings.json`: test prompt and success keyword.
 - `claude-settings.json`: temporary Claude CLI settings used during tests.
 - `codex-home/`: isolated Codex home used during tests.
 
-If old `tsa_endpoints.json` or `test_settings.json` files exist in the current working directory, the app copies them into `~/.TestModelAlive/` on first use.
+If old `tma_endpoints.json` or `test_settings.json` files exist in the current working directory, the app copies them into `~/.TestModelAlive/` on first use.
 
 ## Testing Models
 
@@ -110,6 +110,6 @@ The success condition is configurable:
 
 ## Security
 
-API keys are stored in plaintext inside `~/.TestModelAlive/tsa_endpoints.json`.
+API keys are stored in plaintext inside `~/.TestModelAlive/tma_endpoints.json`.
 
 Do not commit or share runtime data files. Relevant local data files are ignored by `.gitignore`.
