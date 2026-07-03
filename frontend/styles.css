@@ -769,7 +769,7 @@ tr.selected {
 }
 
 .results {
-  max-height: 330px;
+  max-height: 210px;
   max-width: 360px;
 }
 
