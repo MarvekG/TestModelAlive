@@ -354,8 +354,10 @@ export function initApp() {
   }
 
   async function closeTestPanel() {
-    if (testRunning && !(await showConfirm(t("testModels"), t("testStillRunning"), t("stop")))) return;
-    if (testRunning) void stopTests();
+    if (testRunning) {
+      await showAlert(t("testModels"), t("testStillRunning"));
+      return;
+    }
     elements.testPanel.classList.add("hidden");
     document.body.classList.remove("modal-open");
   }

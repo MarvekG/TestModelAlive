@@ -115,6 +115,9 @@ pub(crate) fn remove_matching_provider(
             removed = true;
         }
     }
+    if removed {
+        remove_default_model_if_matches(&mut value, &endpoint.name);
+    }
     Ok((
         format!(
             "{}\n",
@@ -122,6 +125,30 @@ pub(crate) fn remove_matching_provider(
         ),
         removed,
     ))
+}
+
+fn remove_default_model_if_matches(value: &mut Value, provider_name: &str) {
+    let Some(object) = value.as_object_mut() else {
+        return;
+    };
+    let keys = ["model", "small_model"]
+        .into_iter()
+        .filter(|key| {
+            object
+                .get(*key)
+                .and_then(Value::as_str)
+                .map(|model| {
+                    model
+                        .split_once('/')
+                        .is_some_and(|(provider, _)| provider == provider_name)
+                })
+                .unwrap_or(false)
+        })
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    for key in keys {
+        object.remove(&key);
+    }
 }
 
 pub(crate) fn build_remove_opencode_preview(
