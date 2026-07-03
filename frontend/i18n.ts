@@ -213,7 +213,7 @@ export const messages: Record<Language, Record<string, string>> = {
     ended: "Finished",
     launchFailed: "Launch failed",
     missingEndpointName: "Please enter name.",
-    invalidEndpointName: "Name can only contain English letters.",
+    invalidEndpointName: "Name can only contain English letters and numbers.",
     missingEndpointUrl: "Please enter endpoint URL.",
     missingApiKey: "Please enter API key.",
     selectAtLeastOneFetchedModel: "Fetch models first and select at least one model.",

@@ -339,7 +339,7 @@ fn migrate_legacy_into_settings(
 }
 
 fn is_valid_endpoint_name(name: &str) -> bool {
-    !name.is_empty() && name.chars().all(|ch| ch.is_ascii_alphabetic())
+    !name.is_empty() && name.chars().all(|ch| ch.is_ascii_alphanumeric())
 }
 
 fn is_valid_endpoint_type(endpoint_type: &str) -> bool {
