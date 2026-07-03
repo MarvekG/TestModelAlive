@@ -251,7 +251,10 @@ export function initApp() {
     }
     setApplyBusy(true);
     try {
-      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models);
+      const setDefaultModel = target === "opencode" && models.length === 1
+        ? await showConfirm(cliTargetLabel(target), t("setOpenCodeDefaultModel"))
+        : false;
+      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, setDefaultModel);
       const editedConfig = await showCliConfigPreviewDialog({ preview, models, t, isModalOpen: isTestPanelOpen, showAlert });
       if (!editedConfig) return;
       const result = await applyCliConfigApi(testEndpoint, target, editedConfig);

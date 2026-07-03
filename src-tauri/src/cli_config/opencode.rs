@@ -11,6 +11,7 @@ pub(crate) fn build_opencode_preview(
     endpoint: &SavedEndpoint,
     models: &[String],
     files: &[(String, PathBuf, String)],
+    set_default_model: bool,
 ) -> Result<Vec<CliConfigPreviewFile>, String> {
     let (file_id, path, language) = files
         .first()
@@ -51,6 +52,17 @@ pub(crate) fn build_opencode_preview(
             "models": models.iter().map(|model| (model.clone(), serde_json::json!({ "name": model }))).collect::<serde_json::Map<String, Value>>()
         }),
     );
+    if set_default_model {
+        if models.len() != 1 {
+            return Err("OpenCode default model requires exactly one selected model".to_string());
+        }
+        let model = models
+            .first()
+            .ok_or_else(|| "OpenCode default model requires one selected model".to_string())?;
+        let qualified_model = format!("{}/{model}", endpoint.name);
+        object.insert("model".to_string(), Value::String(qualified_model.clone()));
+        object.insert("small_model".to_string(), Value::String(qualified_model));
+    }
     Ok(vec![preview_file(
         file_id,
         path,

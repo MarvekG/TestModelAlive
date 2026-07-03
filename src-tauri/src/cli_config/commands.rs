@@ -25,8 +25,14 @@ pub fn build_cli_config_preview(
     endpoint: SavedEndpoint,
     target: CliConfigTargetKind,
     selected_models: Vec<String>,
+    set_default_model: Option<bool>,
 ) -> Result<CliConfigPreview, String> {
-    build_preview(endpoint, target, selected_models)
+    build_preview(
+        endpoint,
+        target,
+        selected_models,
+        set_default_model.unwrap_or(false),
+    )
 }
 
 #[tauri::command]

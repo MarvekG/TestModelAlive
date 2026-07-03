@@ -46,21 +46,26 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
       <div class="card table-card">
         <div class="card-title">
           <h2 id="saved-endpoints-title">${t("savedEndpoints")}</h2>
-          <div class="actions compact wrap">
-            <input id="endpoint-filter-text" placeholder="${t("filterEndpoints")}" />
-            <select id="endpoint-filter-type">
-              <option value="all">${t("allTypes")}</option>
-              <option value="codex">Codex</option>
-              <option value="claude">Claude</option>
-              <option value="opencode">OpenCode</option>
-            </select>
-            <button id="reload-endpoints" class="secondary">${t("refresh")}</button>
-          </div>
+          <button id="reload-endpoints" class="secondary">${t("refresh")}</button>
         </div>
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th id="endpoint-check-header" class="check-column">${t("select")}</th><th id="endpoint-name-header">${t("name")}</th><th id="endpoint-type-header">${t("type")}</th><th>URL</th><th id="endpoint-key-header">${t("sk")}</th><th id="endpoint-model-count-header">${t("modelCount")}</th></tr>
+              <tr>
+                <th id="endpoint-check-header" class="check-column">${t("select")}</th>
+                <th id="endpoint-name-header"><input id="endpoint-filter-text" placeholder="${t("filterEndpoints")}" /></th>
+                <th id="endpoint-type-header">
+                  <select id="endpoint-filter-type">
+                    <option value="all">${t("allTypes")}</option>
+                    <option value="codex">Codex</option>
+                    <option value="claude">Claude</option>
+                    <option value="opencode">OpenCode</option>
+                  </select>
+                </th>
+                <th>URL</th>
+                <th id="endpoint-key-header">${t("sk")}</th>
+                <th id="endpoint-model-count-header">${t("modelCount")}</th>
+              </tr>
             </thead>
             <tbody id="endpoint-rows"></tbody>
           </table>
