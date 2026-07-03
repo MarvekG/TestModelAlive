@@ -2,22 +2,40 @@
 
 [中文](README.md)
 
-TestModelAlive is a Tauri desktop app for managing Codex / Claude-compatible API endpoints and checking whether saved models are alive through the local CLI tools.
+TestModelAlive is a Tauri desktop app for managing Codex / Claude / OpenCode-compatible API endpoints and checking whether saved models are alive through the local CLI tools.
 
 The app is bilingual, with Chinese and English UI support. Chinese is the default language.
 
-## Features
+## Overall Design
 
-- Add and save `codex` / `claude` API endpoints.
-- Fetch model lists from endpoint `/models` APIs.
-- Select models and save them with the endpoint.
-- Manage saved endpoints with single or batch deletion.
-- Copy endpoint URL / API key.
-- Test saved models through local `codex` or `claude` CLI commands.
-- Stream test output into the test dialog in real time.
-- Configure the test prompt and success keyword.
-- Persist endpoint data and test settings in the user's home directory.
-- Switch UI language between Chinese and English.
+1. Home page: enter the model API information, fetch the model list, and save the API endpoint with its selected models.
+2. Model testing page: generate temporary config files for model availability checks, optionally replace Codex / Claude / OpenCode config, and test with the replaced config.
+
+Model availability checking means verifying whether a model can be used. The app sends a configured prompt to the model and marks the test as passed when the command output contains the configured success keyword.
+
+## Home Page Usage
+
+1. Fill in the endpoint name, type, URL, and API key.
+2. Click "Fetch Models", confirm the model list, and select the models you want to save.
+3. Click "Save Endpoint", then use "Saved Endpoints" to select, load, copy, or delete endpoints.
+
+![Home page](https://github.com/user-attachments/assets/3d0cca52-9309-4e4d-8375-2eb44c27cde1)
+
+## Model Testing Page Usage
+
+1. Select a saved endpoint on the home page and click "Test" to open the model testing page. The page shows the endpoint type, URL, and masked API key.
+2. Confirm the models to test. You can fetch models again, save models, or quickly adjust the range with select all, select none, or invert selection.
+3. Set the timeout as needed. Claude endpoints can enable "Append 1M context [1m] to model" to test long-context model names.
+4. Click "Test Settings" to edit the test prompt and success keyword. The prompt must require the model to output that keyword, which the app uses to decide whether the test passed.
+5. Click "Start Test" to test the current endpoint, or click "Test Current Config" to verify the existing local CLI config. During testing, you can stop the run and inspect status, elapsed time, errors, and logs in the result and log areas. After a model passes, apply the config to Codex, Claude, or OpenCode as needed.
+
+Check whether models are available:
+
+![Model availability check](https://github.com/user-attachments/assets/1a769d4a-210c-42fd-8851-869d46eaf66c)
+
+Replace CLI config:
+
+![Replace CLI config](https://github.com/user-attachments/assets/92beed45-5e0f-4279-b5dc-fe2794b87370)
 
 ## Tech Stack
 
@@ -33,6 +51,7 @@ The app is bilingual, with Chinese and English UI support. Chinese is the defaul
 - Local CLI tools depending on what you test:
   - `codex` for Codex endpoints.
   - `claude` for Claude endpoints.
+  - `opencode` for OpenCode endpoints.
 
 The app searches for CLI executables in `PATH` and common install locations, including npm global paths on Windows and Homebrew paths on macOS.
 
@@ -82,6 +101,7 @@ Files stored there include:
 - `test_settings.json`: test prompt and success keyword.
 - `claude-settings.json`: temporary Claude CLI settings created during tests, overwritten on each test, and kept for troubleshooting.
 - `codex-home/`: isolated Codex home used during tests.
+- `opencode-home/`: isolated OpenCode home used during tests.
 
 If old `tma_endpoints.json` or `test_settings.json` files exist in the current working directory, the app copies them into `~/.TestModelAlive/` on first use.
 
@@ -91,6 +111,7 @@ Model tests run through the local CLI tools:
 
 - Codex tests run with an isolated `CODEX_HOME` under `~/.TestModelAlive/codex-home`.
 - Claude tests run with `~/.TestModelAlive/claude-settings.json` as the settings file.
+- OpenCode tests run with an isolated home under `~/.TestModelAlive/opencode-home`.
 
 The test dialog shows CLI output in real time. The backend no longer mirrors test logs to the terminal.
 
