@@ -1033,7 +1033,7 @@ src-tauri/src/
 - `models.rs`：共享数据结构，例如 `SavedEndpoint`、`TestSettings`、`TestResult`、通用返回结构。
 - `paths.rs`：`~/.TestModelAlive`、真实 CLI 配置路径、备份目录、路径展开等。
 - `settings.rs`：`~/.TestModelAlive/settings.json` 的读写、默认值、版本迁移、原子写入。
-- `endpoints.rs`：端点增删改查，后续从旧 `tsa_endpoints.json` 迁移到 `settings.json`。
+- `endpoints.rs`：端点增删改查，后续从旧 `tma_endpoints.json` 迁移到 `settings.json`。
 - `test_runner/mod.rs`：测试模型的公共调度。
 - `test_runner/codex.rs`：Codex 测试临时配置和命令执行。
 - `test_runner/claude.rs`：Claude 测试临时 settings 和命令执行。

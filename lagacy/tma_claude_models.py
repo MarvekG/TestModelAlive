@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
-"""Fetch server models and test them one by one through Codex CLI.
+"""Test Claude CLI models from endpoint credentials.
 
-By default this script reads codex endpoints from tsa_endpoints.json, the same
-JSON file used by the GUI. Endpoints with type="codex" are selected. If an
+By default this script reads claude endpoints from tma_endpoints.json, the same
+JSON file used by the GUI. Endpoints with type="claude" are selected. If an
 endpoint has no saved models, --models is used.
-
-The actual tested set is the intersection of requested models and the server's
-/models response only when --models-check is set.
-
-The script temporarily rewrites ~/.codex/auth.json and ~/.codex/config.toml for
-each model, runs `codex exec`, and always restores the original files before it
-exits.
 """
 
 from __future__ import annotations
@@ -20,9 +13,10 @@ import gzip
 import json
 import logging
 import os
+import selectors
 import shlex
-import signal
 import shutil
+import signal
 import subprocess
 import time
 import urllib.error
@@ -35,12 +29,13 @@ from typing import Iterable
 
 EXPECTED_OUTPUT = "OKK"
 DEFAULT_PROMPT = "You must output exactly OKK and nothing else. Do not explain. Do not add punctuation."
-DEFAULT_MODELS = "gpt-5.5"
-LOG = logging.getLogger("codex-model-test")
+DEFAULT_MODELS = "claude-opus-4-6"
+LOG = logging.getLogger("claude-model-test")
 LINE = "=" * 72
 SUBLINE = "-" * 72
+SETTINGS_PATH = Path("claude-settings.json")
 MODEL_SEPARATORS = str.maketrans({"，": ","})
-DEFAULT_ENDPOINTS_FILE = Path("tsa_endpoints.json")
+DEFAULT_ENDPOINTS_FILE = Path("tma_endpoints.json")
 
 
 @dataclass(frozen=True)
@@ -93,7 +88,7 @@ class RestorableFile:
         raise RuntimeError(f"could not allocate backup path for {self.path}")
 
 
-def load_endpoints(path: Path, endpoint_type: str = "codex") -> list[Endpoint]:
+def load_endpoints(path: Path, endpoint_type: str = "claude") -> list[Endpoint]:
     with path.open("r", encoding="utf-8") as fh:
         payload = json.load(fh)
     raw_endpoints = payload.get("endpoints")
@@ -133,26 +128,44 @@ def filter_endpoints_by_domain(endpoints: list[Endpoint], domain: str | None) ->
     return [endpoint for endpoint in endpoints if needle in endpoint.base_url.lower()]
 
 
+def configure_logging(verbose: bool) -> None:
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+
+def models_url(base_url: str) -> str:
+    clean = base_url.rstrip("/")
+    if clean.endswith("/v1"):
+        return f"{clean}/models"
+    return f"{clean}/v1/models"
+
+
 def fetch_models(endpoint: Endpoint, timeout: int) -> list[str]:
-    url = f"{endpoint.base_url}/models"
+    url = models_url(endpoint.base_url)
     request = urllib.request.Request(
         url,
         headers={
-            "Authorization": f"Bearer {endpoint.api_key}",
             "Accept": "application/json",
+            "Authorization": f"Bearer {endpoint.api_key}",
+            "X-Api-Key": endpoint.api_key,
+            "Anthropic-Version": "2023-06-01",
         },
     )
-
     with urllib.request.urlopen(request, timeout=timeout) as response:
         payload = json.loads(decode_response_body(response.read(), response.headers.get("Content-Encoding")))
 
-    raw_models = payload.get("data")
+    raw_models = payload.get("data") or payload.get("models")
     if not isinstance(raw_models, list):
-        raise ValueError(f"{url} did not return a JSON object with data: []")
+        raise ValueError(f"{url} did not return a JSON object with data/models: []")
 
-    models = []
+    models: list[str] = []
     for item in raw_models:
-        if isinstance(item, dict) and isinstance(item.get("id"), str):
+        if isinstance(item, str):
+            models.append(item)
+        elif isinstance(item, dict) and isinstance(item.get("id"), str):
             models.append(item["id"])
 
     return sorted(set(models))
@@ -167,44 +180,30 @@ def decode_response_body(body: bytes, content_encoding: str | None) -> str:
     return body.decode("utf-8")
 
 
-def toml_string(value: str) -> str:
-    return json.dumps(value, ensure_ascii=True)
+def write_claude_settings(settings_path: Path, endpoint: Endpoint, model: str) -> None:
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings = {
+        "env": {
+            "ANTHROPIC_BASE_URL": endpoint.base_url,
+            "ANTHROPIC_AUTH_TOKEN": endpoint.api_key,
+        }
+    }
+    settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
 
 
-def write_codex_config(codex_dir: Path, endpoint: Endpoint, model: str) -> None:
-    codex_dir.mkdir(parents=True, exist_ok=True)
-    auth_path = codex_dir / "auth.json"
-    config_path = codex_dir / "config.toml"
-
-    auth_path.write_text(
-        json.dumps({"OPENAI_API_KEY": endpoint.api_key}, indent=2) + "\n",
-        encoding="utf-8",
-    )
-
-    config = f"""model_provider = "custom"
-model = {toml_string(model)}
-model_reasoning_effort = "high"
-disable_response_storage = true
-
-[model_providers.custom]
-name = "model-test"
-base_url = {toml_string(endpoint.base_url)}
-wire_api = "responses"
-requires_openai_auth = true
-"""
-    config_path.write_text(config, encoding="utf-8")
-
-
-def configure_logging(verbose: bool) -> None:
-    logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
-
-def run_codex(timeout: int) -> tuple[bool, str]:
-    command = ["codex", "exec", "--skip-git-repo-check", DEFAULT_PROMPT]
+def run_claude(endpoint: Endpoint, model: str, timeout: int, settings_path: Path) -> tuple[bool, str]:
+    write_claude_settings(settings_path, endpoint, model)
+    command = [
+        "claude",
+        "--debug",
+        "--verbose",
+        "--settings",
+        str(settings_path),
+        "--model",
+        model,
+        "-p",
+        DEFAULT_PROMPT,
+    ]
     LOG.info("running: %s", " ".join(shlex.quote(part) for part in command))
     process = subprocess.Popen(
         command,
@@ -218,31 +217,33 @@ def run_codex(timeout: int) -> tuple[bool, str]:
     output_lines: list[str] = []
     deadline = time.monotonic() + timeout
     assert process.stdout is not None
+    output_selector = selectors.DefaultSelector()
+    output_selector.register(process.stdout, selectors.EVENT_READ)
 
     try:
         while True:
             if time.monotonic() > deadline:
                 raise subprocess.TimeoutExpired(command, timeout, output="\n".join(output_lines))
 
-            line = process.stdout.readline()
-            if line:
-                clean = line.rstrip()
-                output_lines.append(clean)
-                LOG.info("codex | %s", clean)
-                continue
+            for _key, _mask in output_selector.select(timeout=0.2):
+                line = process.stdout.readline()
+                if line:
+                    clean = line.rstrip()
+                    output_lines.append(clean)
+                    LOG.info("claude | %s", clean)
 
             if process.poll() is not None:
                 for line in process.stdout:
                     clean = line.rstrip()
                     output_lines.append(clean)
-                    LOG.info("codex | %s", clean)
+                    LOG.info("claude | %s", clean)
                 break
 
         output = "\n".join(output_lines)
         has_expected_line = any(line.strip() == EXPECTED_OUTPUT for line in output_lines)
         ok = process.returncode == 0 and has_expected_line
         if process.returncode == 0 and not ok:
-            output = f"codex exited 0 but did not return expected '{EXPECTED_OUTPUT}'\n{output}"
+            output = f"claude exited 0 but did not return expected '{EXPECTED_OUTPUT}'\n{output}"
         return ok, output[-1000:]
     except subprocess.TimeoutExpired:
         terminate_process(process)
@@ -250,6 +251,8 @@ def run_codex(timeout: int) -> tuple[bool, str]:
     except KeyboardInterrupt:
         terminate_process(process)
         raise
+    finally:
+        output_selector.close()
 
 
 def terminate_process(process: subprocess.Popen[str]) -> None:
@@ -290,14 +293,16 @@ def intersect_models(requested: Iterable[str], available: Iterable[str]) -> list
     return selected
 
 
-def test_model(endpoint: Endpoint, model: str, codex_dir: Path, timeout: int) -> ModelResult:
+def append_1m_suffix(models: Iterable[str]) -> list[str]:
+    return [model if model.endswith("[1m]") else f"{model}[1m]" for model in models]
+
+
+def test_model(endpoint: Endpoint, model: str, timeout: int, settings_path: Path) -> ModelResult:
     start = time.monotonic()
     LOG.info(SUBLINE)
     LOG.info("testing model: endpoint=%s model=%s", endpoint.base_url, model)
-    write_codex_config(codex_dir, endpoint, model)
-    LOG.debug("wrote Codex config under %s", codex_dir)
     try:
-        ok, detail = run_codex(timeout)
+        ok, detail = run_claude(endpoint, model, timeout, settings_path)
     except subprocess.TimeoutExpired as exc:
         ok = False
         detail = f"timeout after {timeout}s"
@@ -320,7 +325,6 @@ def log_result(result: ModelResult) -> None:
     log("MODEL_STATUS=%s endpoint=%s model=%s elapsed=%.1fs", status, result.endpoint, result.model, result.seconds)
     if not result.ok and result.detail:
         LOG.error("failure detail:\n%s", indent(result.detail, "  "))
-    LOG.info(SUBLINE)
 
 
 def indent(text: str, prefix: str) -> str:
@@ -330,14 +334,12 @@ def indent(text: str, prefix: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--api-file",
+        "--claude-file",
         type=Path,
         default=DEFAULT_ENDPOINTS_FILE,
         help="endpoint JSON file from GUI",
     )
-    parser.add_argument("--codex-dir", type=Path, default=Path.home() / ".codex", help="Codex config directory")
-    parser.add_argument("--fetch-timeout", type=int, default=30, help="seconds for /models requests")
-    parser.add_argument("--codex-timeout", type=int, default=120, help="seconds for each codex exec")
+    parser.add_argument("--timeout", type=int, default=120, help="seconds for each claude test")
     parser.add_argument(
         "--models",
         default=DEFAULT_MODELS,
@@ -351,61 +353,57 @@ def main() -> int:
     parser.add_argument("--limit", type=int, help="maximum models to test per endpoint")
     parser.add_argument("--domain", help="only test endpoint URLs containing this text")
     parser.add_argument("--last-only", action="store_true", help="only test the last matching endpoint")
-    parser.add_argument(
-        "--list-only",
-        action="store_true",
-        help="only fetch and print models; do not change Codex config",
-    )
-    parser.add_argument("--list-models", action="store_true", help="fetch and print server models; do not run codex")
+    parser.add_argument("--list-models", action="store_true", help="fetch and print server models; do not run claude")
+    parser.add_argument("-1m", dest="append_1m", action="store_true", help="append [1m] suffix to tested model ids")
     parser.add_argument("-v", "--verbose", action="store_true", help="enable debug logging")
     args = parser.parse_args()
     configure_logging(args.verbose)
-    list_models = args.list_only or args.list_models
 
-    if shutil.which("codex") is None and not list_models:
-        LOG.error("codex command not found in PATH")
+    if not args.list_models and shutil.which("claude") is None:
+        LOG.error("claude command not found in PATH")
         return 127
 
-    endpoints = select_endpoints(filter_endpoints_by_domain(load_endpoints(args.api_file, "codex"), args.domain), args.last_only)
+    endpoints = select_endpoints(
+        filter_endpoints_by_domain(load_endpoints(args.claude_file, "claude"), args.domain),
+        args.last_only,
+    )
     if not endpoints:
         LOG.error("no endpoints matched the requested filters")
         return 1
     requested_models = parse_models(args.models)
-    auth_path = args.codex_dir / "auth.json"
-    config_path = args.codex_dir / "config.toml"
+    settings_path = SETTINGS_PATH
     results: list[ModelResult] = []
-
     interrupted = False
+
+    if args.list_models:
+        for index, endpoint in enumerate(endpoints, start=1):
+            LOG.info(LINE)
+            LOG.info("ENDPOINT %d/%d: %s", index, len(endpoints), endpoint.base_url)
+            LOG.info(LINE)
+            try:
+                models = fetch_models(endpoint, args.timeout)
+            except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+                LOG.error(
+                    "ENDPOINT_STATUS=UNAVAILABLE endpoint=%s reason=fetch_models_failed detail=%s",
+                    endpoint.base_url,
+                    exc,
+                )
+                continue
+            LOG.info("%s: fetched %d models", endpoint.base_url, len(models))
+            for model in models:
+                LOG.info("model: %s", model)
+        return 0
+
     try:
-        try:
-            with RestorableFile(auth_path), RestorableFile(config_path):
-                for index, endpoint in enumerate(endpoints, start=1):
-                    LOG.info(LINE)
-                    LOG.info("ENDPOINT %d/%d: %s", index, len(endpoints), endpoint.base_url)
-                    LOG.info(LINE)
-                    endpoint_models = list(endpoint.models) if endpoint.models else requested_models
-
-                    if not args.models_check and not list_models:
-                        selected = iter_selected_models(endpoint_models, args.limit)
-                        LOG.info(
-                            "%s: skip /models check, testing %d requested models",
-                            endpoint.base_url,
-                            len(selected),
-                        )
-                        if not selected:
-                            LOG.error(
-                                "ENDPOINT_STATUS=UNAVAILABLE endpoint=%s reason=no_requested_models_selected",
-                                endpoint.base_url,
-                            )
-                        for model in selected:
-                            result = test_model(endpoint, model, args.codex_dir, args.codex_timeout)
-                            results.append(result)
-                            log_result(result)
-                        continue
-
+        with RestorableFile(settings_path):
+            for index, endpoint in enumerate(endpoints, start=1):
+                LOG.info(LINE)
+                LOG.info("ENDPOINT %d/%d: %s", index, len(endpoints), endpoint.base_url)
+                LOG.info(LINE)
+                endpoint_models = list(endpoint.models) if endpoint.models else requested_models
+                if args.models_check:
                     try:
-                        LOG.info("fetching models from %s", endpoint.base_url)
-                        models = fetch_models(endpoint, args.fetch_timeout)
+                        available_models = fetch_models(endpoint, args.timeout)
                     except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
                         LOG.error(
                             "ENDPOINT_STATUS=UNAVAILABLE endpoint=%s reason=fetch_models_failed detail=%s",
@@ -413,45 +411,38 @@ def main() -> int:
                             exc,
                         )
                         continue
+                    selected = intersect_models(endpoint_models, available_models)
+                    missing = [model for model in endpoint_models if model not in set(available_models)]
+                    selected = iter_selected_models(selected, args.limit)
+                    LOG.info(
+                        "%s: fetched %d models, requested %d, testing intersection %d",
+                        endpoint.base_url,
+                        len(available_models),
+                        len(endpoint_models),
+                        len(selected),
+                    )
+                    if missing:
+                        LOG.warning("%s: requested models not available: %s", endpoint.base_url, ",".join(missing))
+                else:
+                    selected = iter_selected_models(endpoint_models, args.limit)
+                    LOG.info("%s: testing %d requested models", endpoint.base_url, len(selected))
+                if args.append_1m:
+                    selected = append_1m_suffix(selected)
+                if not selected:
+                    LOG.error(
+                        "ENDPOINT_STATUS=UNAVAILABLE endpoint=%s reason=no_requested_models_selected",
+                        endpoint.base_url,
+                    )
 
-                    if list_models:
-                        selected = iter_selected_models(models, args.limit)
-                        LOG.info("%s: fetched %d models, showing %d", endpoint.base_url, len(models), len(selected))
-                    else:
-                        selected = intersect_models(endpoint_models, models)
-                        missing = [model for model in endpoint_models if model not in set(models)]
-                        selected = iter_selected_models(selected, args.limit)
-                        LOG.info(
-                            "%s: fetched %d models, requested %d, testing intersection %d",
-                            endpoint.base_url,
-                            len(models),
-                            len(endpoint_models),
-                            len(selected),
-                        )
-                        if missing:
-                            LOG.warning("%s: requested models not available: %s", endpoint.base_url, ",".join(missing))
-                        if not selected:
-                            LOG.error(
-                                "ENDPOINT_STATUS=UNAVAILABLE endpoint=%s reason=no_requested_models_available",
-                                endpoint.base_url,
-                            )
-
-                    for model in selected:
-                        if list_models:
-                            LOG.info("model: %s", model)
-                            continue
-
-                        result = test_model(endpoint, model, args.codex_dir, args.codex_timeout)
-                        results.append(result)
-                        log_result(result)
-        except KeyboardInterrupt:
-            interrupted = True
-            LOG.warning("interrupted by Ctrl+C; stopping after restoring Codex config")
+                for model in selected:
+                    result = test_model(endpoint, model, args.timeout, settings_path)
+                    results.append(result)
+                    log_result(result)
+    except KeyboardInterrupt:
+        interrupted = True
+        LOG.warning("interrupted by Ctrl+C; stopping")
     finally:
-        LOG.info("restored %s and %s", auth_path, config_path)
-
-    if list_models:
-        return 130 if interrupted else 0
+        LOG.info("restored %s", settings_path)
 
     ok_count = sum(1 for result in results if result.ok)
     fail_count = len(results) - ok_count
@@ -460,13 +451,12 @@ def main() -> int:
     if available_results:
         LOG.info(LINE)
         LOG.info("AVAILABLE_CONFIGS")
-    for result in results:
-        if not result.ok:
-            continue
+    for result in available_results:
         LOG.info(LINE)
         LOG.info("%s", result.endpoint)
         LOG.info("%s", result.api_key)
         LOG.info("%s", result.model)
+
     if interrupted:
         return 130
     return 0 if fail_count == 0 else 1

@@ -470,6 +470,94 @@ tr.selected {
   padding: 10px;
 }
 
+.warning-box {
+  margin-bottom: 10px;
+}
+
+.cli-config-dialog,
+.restore-config-dialog {
+  background: #f8fafc;
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgb(15 23 42 / 28%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(92vh, 860px);
+  overflow: hidden;
+  padding: 14px;
+  width: min(960px, calc(100vw - 28px));
+}
+
+.restore-config-dialog {
+  width: min(760px, calc(100vw - 28px));
+}
+
+.cli-config-meta {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.cli-config-meta div {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+}
+
+.cli-config-meta strong {
+  color: #66748a;
+  font-size: 0.8rem;
+}
+
+.cli-config-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cli-config-files,
+.restore-list {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.cli-config-file {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  color: #263349;
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+}
+
+.cli-config-file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cli-config-editor {
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  min-height: 240px;
+  white-space: pre;
+}
+
+.restore-item {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.restore-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .test-endpoint-box {
   background: white;
   border: 1px solid #e2e8f0;
