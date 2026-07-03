@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Qt GUI for managing TSA endpoints and testing saved models."""
+"""Qt GUI for managing TMA endpoints and testing saved models."""
 
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-import tsa_claude_models as claude_core
-import tsa_codex_models as codex_core
+import tma_claude_models as claude_core
+import tma_codex_models as codex_core
 
 
 try:
@@ -62,7 +62,7 @@ ITEM_CHECKED = Qt.CheckState.Checked
 USER_ROLE = Qt.ItemDataRole.UserRole
 
 
-DATA_FILE = Path("tsa_endpoints.json")
+DATA_FILE = Path("tma_endpoints.json")
 PROMPT = "You must output exactly OKK and nothing else. Do not explain. Do not add punctuation."
 EXPECTED_OUTPUT = "OKK"
 CHINESE_FONT_CANDIDATES = (
@@ -126,7 +126,7 @@ class EndpointStore:
             payload = json.load(fh)
         raw_endpoints = payload.get("endpoints", [])
         if not isinstance(raw_endpoints, list):
-            raise ValueError("tsa_endpoints.json: endpoints must be a list")
+            raise ValueError("tma_endpoints.json: endpoints must be a list")
 
         endpoints: list[SavedEndpoint] = []
         for item in raw_endpoints:
@@ -328,7 +328,7 @@ class MainWindow(QMainWindow):
         self.fetch_thread: threading.Thread | None = None
         self.ui_font = ui_font
 
-        self.setWindowTitle("TSA GUI")
+        self.setWindowTitle("TMA GUI")
         self.resize(1120, 760)
         self._build_ui()
         self._load_store()

@@ -78,12 +78,12 @@ Windows 下对应：
 
 目录内主要文件包括：
 
-- `tsa_endpoints.json`：已保存端点和模型列表。
+- `tma_endpoints.json`：已保存端点和模型列表。
 - `test_settings.json`：测试提示词和成功匹配关键词。
 - `claude-settings.json`：测试 Claude CLI 时生成的临时 settings 文件。
 - `codex-home/`：测试 Codex CLI 时使用的独立 Codex home。
 
-如果当前工作目录存在旧版 `tsa_endpoints.json` 或 `test_settings.json`，应用首次使用时会复制到 `~/.TestModelAlive/`。
+如果当前工作目录存在旧版 `tma_endpoints.json` 或 `test_settings.json`，应用首次使用时会复制到 `~/.TestModelAlive/`。
 
 ## 模型测试
 
@@ -110,6 +110,6 @@ Windows 下对应：
 
 ## 安全提醒
 
-API Key 会以明文形式保存在 `~/.TestModelAlive/tsa_endpoints.json`。
+API Key 会以明文形式保存在 `~/.TestModelAlive/tma_endpoints.json`。
 
 不要提交或公开运行时数据文件。相关本地数据文件已加入 `.gitignore`。
