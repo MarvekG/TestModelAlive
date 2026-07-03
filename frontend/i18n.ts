@@ -80,7 +80,7 @@ export const messages: Record<Language, Record<string, string>> = {
     ended: "已结束",
     launchFailed: "启动失败",
     missingEndpointName: "请填写名称。",
-    invalidEndpointName: "名称只能包含英文大小写字母。",
+    invalidEndpointName: "名称只能包含英文大小写字母和数字。",
     missingEndpointUrl: "请填写端点 URL。",
     missingApiKey: "请填写 API Key。",
     selectAtLeastOneFetchedModel: "请先拉取模型并选择至少一个模型。",
