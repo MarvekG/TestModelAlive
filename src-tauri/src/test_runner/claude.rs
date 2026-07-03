@@ -14,7 +14,12 @@ pub(crate) fn prepare_claude(
     let settings = serde_json::json!({
         "env": {
             "ANTHROPIC_BASE_URL": endpoint.base_url,
-            "ANTHROPIC_AUTH_TOKEN": endpoint.api_key,
+            "ANTHROPIC_API_KEY": endpoint.api_key,
+            "ANTHROPIC_MODEL": model,
+            "ANTHROPIC_DEFAULT_SONNET_MODEL": model,
+            "ANTHROPIC_DEFAULT_OPUS_MODEL": model,
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL": model,
+            "ANTHROPIC_DEFAULT_FABLE_MODEL": model,
         }
     });
     fs::write(
