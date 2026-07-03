@@ -14,15 +14,15 @@
 - `claude` 类型模型测试页：显示“应用到 Claude”。
 - `opencode` 类型模型测试页：显示“应用到 OpenCode”和“从 OpenCode 移除”。
 - 主界面：显示“还原配置”，点击后弹窗勾选需要还原的配置，勾选哪些还原哪些。
-- 配置应用完成后：显示“用当前配置测试”按钮，直接使用本机真实 CLI 配置测试 Codex、Claude、OpenCode，不再使用临时配置。
+- 测试模型页常驻“测试当前配置”按钮；配置应用完成结果弹窗中也提供“用当前配置测试”入口，直接使用本机真实 CLI 配置测试 Codex、Claude、OpenCode，不再使用临时配置。
 
 写入目标仍受端点类型约束：
 
 - `codex` 类型凭证：可应用到 Codex。
 - `claude` 类型凭证：可应用到 Claude。
 - `opencode` 类型凭证：可应用到 OpenCode。
-- Codex 和 Claude 都是替换对应 CLI 配置文件，替换前备份。
-- OpenCode 是新增接入点，不替换已有配置或已有入口。
+- Codex 和 Claude 都写入对应 CLI 配置文件，写入前备份。Codex 的 `auth.json` 预览当前只生成 `OPENAI_API_KEY` 基础结构；`config.toml` 在原配置基础上合并。
+- OpenCode 是按端点名称新增 provider，不替换已有 provider；如果同名 provider 已存在则预览失败，用户需要先改端点名或移除旧 provider。
 
 应用自身配置统一集中到 `~/.TestModelAlive/settings.json`，包括端点数据、测试提示词设置、CLI 配置备份索引和原始基线信息。真实 CLI 配置备份文件统一保存到 `~/.TestModelAlive/` 下的子目录，不散落在 CLI 原配置目录旁边。
 
@@ -35,19 +35,19 @@
 - 使用当前测试弹窗中的端点作为配置来源。
 - 根据端点类型展示可用应用按钮：`codex` 展示 Codex，`claude` 展示 Claude，`opencode` 展示 OpenCode。
 - 写入真实 CLI 配置前显示编辑确认弹窗，展示即将写入的新配置内容，允许用户修改，确认后才执行备份和替换。
-- 对 `codex` 和 `claude` 的目标配置文件做时间戳备份后，在原配置基础上修改必要字段。
-- `opencode` 使用独立端点新增一个可识别的 provider/entry，不覆盖用户已有 provider/entry。
+- 对目标配置文件做 `baseline` 或 `apply` 备份后写入。Codex `config.toml`、Claude JSON、OpenCode JSON/JSONC 会在可解析时合并；Codex `auth.json` 当前预览为基础 JSON。
+- `opencode` 使用端点名称作为 provider key 新增入口，不覆盖同名 provider。
 - 每个目标文件首次被本应用修改前创建原始配置基线，记录原文件路径、备份路径、原文件是否存在等信息。
 - 提供“一键还原”能力，可以基于原始配置基线恢复到本应用修改前的最原始配置状态；后续在应用内无论修改多少次，都不覆盖该基线。
 - 应用配置集中写入 `~/.TestModelAlive/settings.json`，包括原有提示词设置和 CLI 备份路径。
 - 备份文件写入 `~/.TestModelAlive/cli-config-backups/<target>/` 子目录。
 - 写入完成后展示成功结果和备份路径。
-- 写入完成后提供“用当前配置测试”入口，直接验证替换后的真实 CLI 配置。
+- 测试模型页和应用成功结果弹窗都提供真实 CLI 配置测试入口。
 - 失败时保留已生成的备份，不自动删除，便于用户恢复。
 
 ## 非目标
 
-- 不实现导入、删除已有 provider 的 UI。
+- 不实现导入已有 provider 的 UI；OpenCode 已实现按当前端点 URL 和 API Key 匹配 provider 的“从 OpenCode 移除”流程，移除前同样展示可编辑预览。
 - 不实现任意历史备份浏览、差异对比的 UI；初版通过勾选列表选择要还原的配置，并还原到本应用首次修改该配置前的原始状态。
 - 不自动探测或安装 `codex` / `claude` / `opencode` CLI。
 - 新增其他端点类型时应按同一套 fetch/test/apply 分支接入，不复用既有类型。
@@ -58,18 +58,18 @@
 
 ## UI 设计
 
-位置：`frontend/main.ts` 的测试弹窗控制栏，当前按钮顺序为：
+位置：`frontend/ui/renderApp.ts` 的测试弹窗控制栏。当前按钮顺序为：
 
 ```text
-开始测试 / 停止 / 测试设置 / 状态
+超时时间 / 开始测试 / 测试当前配置 / 停止 / 测试设置 / 状态
 ```
 
 调整为：
 
 ```text
-codex 端点：开始测试 / 停止 / 测试设置 / 应用到 Codex / 状态
-claude 端点：开始测试 / 停止 / 测试设置 / 应用到 Claude / 状态
-opencode 端点：开始测试 / 停止 / 测试设置 / 应用到 OpenCode / 从 OpenCode 移除 / 状态
+codex 端点：超时时间 / 开始测试 / 测试当前配置 / 停止 / 测试设置 / 应用到 Codex / 状态
+claude 端点：超时时间 / 1M 选项 / 开始测试 / 测试当前配置 / 停止 / 测试设置 / 应用到 Claude / 状态
+opencode 端点：超时时间 / 开始测试 / 测试当前配置 / 停止 / 测试设置 / 应用到 OpenCode / 从 OpenCode 移除 / 状态
 ```
 
 主界面新增：
@@ -80,7 +80,7 @@ opencode 端点：开始测试 / 停止 / 测试设置 / 应用到 OpenCode / �
 
 按钮行为：
 
-- 应用按钮文案：中文为“应用到 Codex”、“应用到 Claude”、“应用到 OpenCode”；英文为“Apply to Codex”、“Apply to Claude”、“Apply to OpenCode”。
+- 应用按钮文案：中文为“应用到 Codex”、“应用到 Claude”、“应用到 OpenCode”、“从 OpenCode 移除”；英文为“Apply to Codex”、“Apply to Claude”、“Apply to OpenCode”、“Remove from OpenCode”。
 - 主界面还原按钮文案：中文为“还原配置”，英文为“Restore Config”。
 - 未打开测试弹窗或没有 `testEndpoint` 时，不展示或禁用应用按钮。
 - 当前端点为 `codex` 时，只展示“应用到 Codex”。
@@ -89,18 +89,18 @@ opencode 端点：开始测试 / 停止 / 测试设置 / 应用到 OpenCode / �
 - 点击“应用到 Codex”或“应用到 Claude”前，必须且只能勾选一个模型。
 - 点击“应用到 OpenCode”前，必须至少勾选一个模型，允许多选。
 - 点击应用按钮后先生成目标 CLI 的新配置内容，并弹出编辑确认框。
-- 编辑确认框展示目标工具、当前端点类型、URL、脱敏 Key、目标路径、备份目录，以及即将写入的完整配置内容。
+- 编辑确认框展示目标标题、当前端点类型、选中模型、目标文件 ID、目标路径，以及即将写入的完整配置内容；API Key 可能出现在可编辑配置内容中，确认提示会说明将明文写入本机 CLI 配置。
 - 用户可在编辑框中修改即将写入的配置内容；点击确认后，前端把修改后的内容传给后端。
 - 用户确认后调用后端 `apply_cli_config(app, endpoint, target, edited_config)`。
 - 成功后 toast 显示“已应用到 <target>”，并在结果弹窗中展示写入文件、操作备份文件、原始基线备份文件。
-- 应用成功结果弹窗中展示“用当前配置测试”按钮，英文为“Test Current Config”。
-- 点击“用当前配置测试”后调用后端 `test_cli_with_real_config(app, target, selected_models, prompt, success_keyword, timeout)`。
+- 应用成功结果弹窗中展示“用当前配置测试”按钮，英文为“Test Current Config”；测试模型页也有同名按钮，可不经过应用结果弹窗直接验证本机真实配置。
+- 点击“用当前配置测试”后调用后端 `test_cli_with_real_config(app, state, request, on_event)`，请求中包含 `target`、`endpoint_name`、`models`、`prompt`、`success_keyword`、`timeout`。
 - 真实配置测试不写入临时配置，不设置 `CODEX_HOME`，Claude 不传 `--settings`，OpenCode 使用默认配置目录。
-- 真实配置测试结果复用现有测试结果展示样式，但标题必须标明“真实 CLI 配置测试”。
+- 真实配置测试结果复用现有测试结果展示样式，日志会输出 `starting real CLI config test` 和目标类型，避免与临时配置测试混淆。
 - 失败后 toast 显示错误，并保留错误详情。
 - 点击主界面“还原配置”后弹出还原选择框。
-- 还原选择框从 `settings.json.cli_config.baseline_items` 读取可还原项，按 Codex、Claude、OpenCode 分组展示复选框。
-- 用户勾选哪些配置就还原哪些配置；没有勾选时确认按钮禁用。
+- 还原选择框通过 `load_cli_config_baseline_items` 从 `settings.json.cli_config.baseline_items` 读取可还原项，当前实现以列表展示，默认全选。
+- 用户勾选哪些配置就还原哪些配置；如果确认时没有勾选，前端提示错误。
 - 用户确认后调用后端 `restore_original_cli_config(app, selected_items)`。
 - 还原成功后 toast 显示“已还原配置”，并展示每个目标文件的还原结果。
 
@@ -112,7 +112,10 @@ opencode 端点：开始测试 / 停止 / 测试设置 / 应用到 OpenCode / �
 
 ```rust
 #[tauri::command]
-fn build_cli_config_preview(app: tauri::AppHandle, endpoint: SavedEndpoint, target: CliConfigTargetKind, selected_models: Vec<String>) -> Result<CliConfigPreview, String>
+fn build_cli_config_preview(app: tauri::AppHandle, endpoint: SavedEndpoint, target: CliConfigTargetKind, selected_models: Vec<String>, default_model: Option<String>) -> Result<CliConfigPreview, String>
+
+#[tauri::command]
+fn build_remove_opencode_config_preview(app: tauri::AppHandle, endpoint: SavedEndpoint) -> Result<CliConfigPreview, String>
 
 #[tauri::command]
 fn apply_cli_config(app: tauri::AppHandle, endpoint: SavedEndpoint, target: CliConfigTargetKind, edited_config: EditedCliConfig) -> Result<ApplyCliConfigResult, String>
@@ -121,7 +124,10 @@ fn apply_cli_config(app: tauri::AppHandle, endpoint: SavedEndpoint, target: CliC
 fn restore_original_cli_config(app: tauri::AppHandle, selected_items: Vec<RestoreSelection>) -> Result<RestoreCliConfigResult, String>
 
 #[tauri::command]
-fn test_cli_with_real_config(app: tauri::AppHandle, request: RealCliTestRequest) -> Result<Vec<TestResult>, String>
+fn load_cli_config_baseline_items(app: tauri::AppHandle) -> Result<Vec<CliConfigBaselineView>, String>
+
+#[tauri::command]
+fn test_cli_with_real_config(app: tauri::AppHandle, state: tauri::State<AppState>, request: RealCliTestRequest, on_event: Channel<TestMessage>) -> Result<(), String>
 ```
 
 返回结构：
@@ -145,6 +151,7 @@ struct CliConfigPreviewFile {
 #[derive(Debug, Deserialize)]
 struct EditedCliConfig {
     files: Vec<EditedCliConfigFile>,
+    selected_models: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -189,7 +196,7 @@ struct CliConfigRestoreResult {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "lowercase")]
 enum CliConfigTargetKind {
     Codex,
     Claude,
@@ -206,12 +213,22 @@ struct RestoreSelection {
 #[derive(Debug, Deserialize)]
 struct RealCliTestRequest {
     target: CliConfigTargetKind,
+    endpoint_name: Option<String>,
     models: Vec<String>,
     prompt: String,
     success_keyword: String,
     timeout: u64,
 }
 ```
+
+说明：
+
+- `CliConfigTargetKind` 前后端传输值为 `codex`、`claude`、`opencode`。
+- `build_cli_config_preview` 的 `default_model` 仅用于 OpenCode；传入后会写入顶层 `model` 和 `small_model`，格式为 `<provider>/<model>`。
+- `build_remove_opencode_config_preview` 只生成移除匹配 OpenCode provider 后的预览，不直接写入；确认后仍复用 `apply_cli_config` 写入。
+- `load_cli_config_baseline_items` 返回给还原弹窗展示的精简基线项，不包含 `backup_path`。
+- `test_cli_with_real_config` 通过 `Channel<TestMessage>` 流式返回日志和结果，不同步返回 `Vec<TestResult>`。
+- `RealCliTestRequest.endpoint_name` 用于 OpenCode 真实配置测试，命令会拼出 `<endpoint_name>/<model>`。
 
 `action` 建议值：
 
@@ -233,9 +250,9 @@ struct RealCliTestRequest {
 
 1. 前端点击“应用到 X”。
 2. 前端收集当前测试弹窗选中的模型。Codex/Claude 必须且只能选择 1 个模型；OpenCode 可以选择多个模型。
-3. 前端调用 `build_cli_config_preview` 生成默认配置内容。
+3. 前端调用 `build_cli_config_preview` 生成默认配置内容；OpenCode 可先询问是否设置默认模型，并把选中的默认模型作为 `default_model` 传给后端。
 4. 前端弹出编辑确认框，用户检查并可修改每个目标文件内容。
-5. 用户确认后，前端调用 `apply_cli_config`，传入 `edited_config`。
+5. 用户确认后，前端调用 `apply_cli_config`，传入 `edited_config`，其中包含编辑后的文件内容和本次选中的模型列表。
 6. 后端对 `edited_config` 做基础校验，先创建原始基线和操作备份，再把用户确认后的内容写入真实 CLI 配置。
 
 `build_cli_config_preview` 不写任何真实 CLI 配置，也不创建备份。
@@ -295,7 +312,7 @@ CLI 配置备份目录：
   - Windows：`%USERPROFILE%\.config\opencode\opencode.json`。
   - macOS：`$HOME/Library/Application Support/opencode/opencode.json` 或 CLI 实际文档路径。
   - Linux：`${XDG_CONFIG_HOME:-$HOME/.config}/opencode/opencode.json`。
-- 当前文档中的 `~/.config/opencode/opencode.json` 只能作为 Linux/XDG 示例；实施前必须在 `paths.rs` 中集中封装 OpenCode 路径解析，避免散落硬编码。
+- 当前文档中的 `~/.config/opencode/opencode.json` 只能作为 Linux/XDG 示例；实现已在 `paths.rs` 中集中封装 OpenCode 路径解析，避免散落硬编码。
 
 ### 文件写入与替换
 
@@ -353,20 +370,15 @@ CLI 配置备份目录：
       "type": "codex",
       "base_url": "https://api.example.com/v1",
       "api_key": "sk-xxx",
-      "models": ["gpt-4.1"],
-      "created_at": "2026-07-03T15:30:45+08:00",
-      "updated_at": "2026-07-03T15:30:45+08:00"
+      "models": ["gpt-4.1"]
     }
   ],
   "test_settings": {
-    "prompt": "用一句话回答：你是谁？",
-    "codex_prompt": "用一句话回答：你是谁？",
-    "claude_prompt": "用一句话回答：你是谁？",
-    "timeout_seconds": 120,
-    "max_concurrency": 1
+    "prompt": "You must output exactly OKK and nothing else. Do not explain. Do not add punctuation.",
+    "success_keyword": "OKK"
   },
   "cli_config": {
-    "baseline_id": "20260703153045-a1b2c3",
+    "baseline_id": "baseline-1780000000000000000",
     "backup_root": "C:\\Users\\me\\.TestModelAlive\\cli-config-backups",
     "apply_history_limit": 20,
     "baseline_items": [
@@ -375,8 +387,8 @@ CLI 配置备份目录：
         "file_id": "codex-config",
         "path": "C:\\Users\\me\\.codex\\config.toml",
         "existed_before": true,
-        "backup_path": "C:\\Users\\me\\.TestModelAlive\\cli-config-backups\\codex\\config.toml.20260703153045.bak",
-        "created_at": "2026-07-03T15:30:45+08:00"
+        "backup_path": "C:\\Users\\me\\.TestModelAlive\\cli-config-backups\\codex\\config.toml.baseline.1780000000000000000.0.bak",
+        "created_at": "1780000000000000000"
       }
     ]
   }
@@ -395,7 +407,7 @@ CLI 配置备份目录：
       "endpoint_id": "codex-20260703153045-001",
       "created_at": "1780000000000000000",
       "backup_paths": [
-        "C:\\Users\\me\\.TestModelAlive\\cli-config-backups\\opencode\\opencode.json.1780000000000000000.bak"
+        "C:\\Users\\me\\.TestModelAlive\\cli-config-backups\\opencode\\opencode.json.apply.1780000000000000000.0.bak"
       ],
       "files": [
         {
@@ -425,20 +437,17 @@ CLI 配置备份目录：
 
 - `id`：端点稳定 ID。建议格式为 `<type>-<timestamp>-<seq>`。
 - `name`：用户可读名称。
-- `type`：端点类型，只允许 `codex` 或 `claude`。
+- `type`：端点类型，只允许 `codex`、`claude` 或 `opencode`。
 - `base_url`：端点 URL，保存时去掉尾部 `/`。
 - `api_key`：API Key，按现有设计明文保存。
 - `models`：用户在测试页选择或保存的模型 ID 列表。
-- `created_at`：首次创建时间，ISO 8601 字符串。
-- `updated_at`：最近更新时间，ISO 8601 字符串。
+- 当前 `SavedEndpoint` 不保存创建时间或更新时间字段。
 
-`test_settings`：测试模型页的提示词和运行参数。
+`test_settings`：测试模型页的提示词和成功判断关键词。
 
-- `prompt`：通用默认提示词。保留该字段用于兼容现有提示词设置。
-- `codex_prompt`：Codex 测试默认提示词。如果为空，回退到 `prompt`。
-- `claude_prompt`：Claude 测试默认提示词。如果为空，回退到 `prompt`。
-- `timeout_seconds`：单次 CLI 测试超时时间，默认 `120`。
-- `max_concurrency`：测试并发数，默认 `1`。
+- `prompt`：测试提示词。当前默认值为 `You must output exactly OKK and nothing else. Do not explain. Do not add punctuation.`。
+- `success_keyword`：成功关键词。当前默认值为 `OKK`，保存时要求提示词包含该关键词。
+- 超时时间不保存在 `settings.json.test_settings` 中，当前由测试弹窗输入框提供默认值。
 
 `cli_config`：真实 CLI 配置的备份索引和应用历史。
 
@@ -455,14 +464,14 @@ CLI 配置备份目录：
 - `path`：真实 CLI 配置文件绝对路径。
 - `existed_before`：本应用首次修改前该文件是否存在。
 - `backup_path`：本应用首次修改前的备份文件路径；`existed_before == false` 时为 `null`。
-- `created_at`：该基线项创建时间。
+- `created_at`：该基线项创建时间，当前为 Unix timestamp nanos 字符串。
 
 `cli-config-apply-history.json.items[]` 字段：
 
 - `apply_id`：本次应用操作 ID，每次应用生成一次。
 - `target`：本次应用目标工具。
-- `endpoint_id`：本次应用使用的端点 ID。如果端点来自临时状态而非已保存端点，可为 `null`。
-- `created_at`：本次应用时间。
+- `endpoint_id`：本次应用使用的端点 ID，当前为字符串。
+- `created_at`：本次应用时间，当前为 Unix timestamp nanos 字符串。
 - `backup_paths`：本次操作产生的普通备份路径列表。
 - `files`：本次操作涉及的目标文件列表。
 
@@ -491,15 +500,12 @@ CLI 配置备份目录：
   "version": 1,
   "endpoints": [],
   "test_settings": {
-    "prompt": "用一句话回答：你是谁？",
-    "codex_prompt": "",
-    "claude_prompt": "",
-    "timeout_seconds": 120,
-    "max_concurrency": 1
+    "prompt": "You must output exactly OKK and nothing else. Do not explain. Do not add punctuation.",
+    "success_keyword": "OKK"
   },
   "cli_config": {
-    "baseline_id": "",
-    "backup_root": "",
+    "baseline_id": "baseline-1780000000000000000",
+    "backup_root": "C:\\Users\\me\\.TestModelAlive\\cli-config-backups",
     "apply_history_limit": 20,
     "baseline_items": []
   }
@@ -508,9 +514,8 @@ CLI 配置备份目录：
 
 说明：
 
-- `baseline_id` 可以为空；首次应用 CLI 配置时再生成。
-- `backup_root` 可以为空；首次应用 CLI 配置时写入展开后的绝对路径。
-- `codex_prompt` 和 `claude_prompt` 为空时回退到 `prompt`。
+- `baseline_id` 在默认配置创建或规范化时生成；如果读取到空值，会重新生成。
+- `backup_root` 在默认配置创建或规范化时写入展开后的绝对路径；如果读取到空值，会重新填充。
 
 ### 读写规则
 
@@ -533,12 +538,12 @@ fn save_original_baseline(baseline: &CliConfigBaseline) -> Result<PathBuf, Strin
 
 行为：
 
-- 文件存在时复制到同目录。
+- 文件存在时复制到 `~/.TestModelAlive/cli-config-backups/<target>/`。
 - 备份名使用当前项目已有 `next_backup_path` 风格，例如：
-  - `config.toml.20260703153045.bak`
-  - `auth.json.20260703153045.bak`
-  - `settings.json.20260703153045.bak`
-  - `opencode.jsonc.20260703153045.bak`
+  - `config.toml.baseline.1780000000000000000.0.bak`
+  - `auth.json.apply.1780000000000000000.0.bak`
+  - `settings.json.pre-restore.1780000000000000000.0.bak`
+  - `opencode.json.apply.1780000000000000000.0.bak`
 - 文件不存在时返回 `None`。
 - 写入前确保父目录存在。
 - 所有会被修改的目标文件必须先完成备份和原始基线记录，再执行任何配置写入。
@@ -561,7 +566,7 @@ OpenCode 虽然是新增接入点，不替换整个配置语义，但仍会修�
 
 `settings.json` 中的 `cli_config.baseline_items` 是一键还原的唯一依据。它按目标文件保存本应用首次修改前的状态，后续应用不能覆盖已有 item。每次应用仍可写入 `cli-config-apply-history.json`，用于展示本次备份路径和排查问题，但不能作为“一键还原到原始配置”的依据。
 
-`baseline_id` 建议在 `settings.json.cli_config` 首次创建时生成，使用时间戳加短随机串，例如 `20260703153045-a1b2c3`。`apply_id` 每次应用生成一次。
+`baseline_id` 在 `settings.json.cli_config` 首次创建或规范化时生成，当前格式为 `baseline-<unix_timestamp_nanos>`。`apply_id` 每次应用生成一次，当前格式为 `apply-<unix_timestamp_nanos>`。
 
 基线 item 建议结构：
 
@@ -574,7 +579,7 @@ OpenCode 虽然是新增接入点，不替换整个配置语义，但仍会修�
   "path": "C:\\Users\\me\\.codex\\auth.json",
   "existed_before": true,
   "backup_path": "C:\\Users\\me\\.TestModelAlive\\cli-config-backups\\codex\\auth.json.20260703153045.bak",
-  "created_at": "2026-07-03T15:30:45+08:00"
+  "created_at": "1780000000000000000"
 }
 ```
 
@@ -585,7 +590,7 @@ OpenCode 虽然是新增接入点，不替换整个配置语义，但仍会修�
 - `backup_path`：本应用首次修改该目标前，目标文件存在时的备份路径；不存在时为 `null`。
 - `target`：目标工具，取值为 `codex`、`claude`、`opencode`。
 - `file_id`：稳定文件标识，用于展示和恢复结果，例如 `codex-auth`、`codex-config`、`claude-settings`、`claude-state`、`opencode-config`。
-- `created_at`：该基线项创建时间。
+- `created_at`：该基线项创建时间，当前为 Unix timestamp nanos 字符串。
 
 写入顺序必须是：
 
@@ -637,19 +642,18 @@ OpenCode 虽然是新增接入点，不替换整个配置语义，但仍会修�
 - `~/.codex/auth.json`
 - `~/.codex/config.toml`
 
-写入策略：在原有配置基础上修改必要字段，不完整重写用户配置。`build_cli_config_preview` 读取现有文件并生成合并后的预览；用户可编辑预览内容；`apply_cli_config` 写入用户确认后的内容。
+写入策略：`config.toml` 在原有配置基础上修改必要字段；`auth.json` 当前生成基础 JSON。用户可编辑预览内容；`apply_cli_config` 写入用户确认后的内容。
 
 ### Codex auth.json
 
-如果原文件存在且是合法 JSON：
+生成预览时：
 
-- 保留所有未知字段。
-- 设置或覆盖 `OPENAI_API_KEY` 为当前端点的 `api_key`。
-- 不删除其他认证字段，避免破坏用户其他 provider 登录状态。
+- 当前实现生成基础 JSON，只包含并设置 `OPENAI_API_KEY` 为当前端点的 `api_key`。
+- 当前实现不会读取并保留 `auth.json` 中其他未知字段。
 
 如果原文件不存在：创建基础 JSON。
 
-如果原文件存在但不是合法 JSON：不自动覆盖，提示用户编辑确认框中展示“无法解析原文件”。初版建议阻止自动生成预览，要求用户先修复或手动清空后再应用。
+如果原文件存在但不是合法 JSON：当前实现不会解析旧 `auth.json`，仍会生成基础 JSON 预览；用户需要在编辑确认框中自行补回要保留的字段。
 
 `auth.json`：
 
@@ -659,14 +663,7 @@ OpenCode 虽然是新增接入点，不替换整个配置语义，但仍会修�
 }
 ```
 
-示例：原文件包含其他字段时保留：
-
-```json
-{
-  "OPENAI_API_KEY": "sk-new",
-  "OTHER_TOKEN": "keep-me"
-}
-```
+注意：如果用户需要保留 `auth.json` 中其他字段，应在预览编辑框中手动补回。
 
 ### Codex config.toml
 
@@ -674,9 +671,9 @@ OpenCode 虽然是新增接入点，不替换整个配置语义，但仍会修�
 
 - 保留所有未知顶层字段和未知表。
 - 设置或覆盖顶层 `model` 为用户选择的单个模型 ID。
-- 设置或覆盖顶层 `model_provider = "testmodelalive"`。
-- 设置或覆盖顶层 `disable_response_storage = true`。
-- 新增或覆盖 `[model_providers.testmodelalive]` 表。
+- 设置或覆盖顶层 `model_provider` 为当前端点名称 `endpoint.name`。
+- 新增或覆盖 `[model_providers.<endpoint.name>]` 表。
+- 当前真实 CLI 配置写入预览不会设置 `disable_response_storage`；该字段只存在于临时 Codex 测试配置中。
 - 不删除其他 `[model_providers.*]`，避免破坏用户已有 provider。
 
 如果原文件不存在：创建基础 TOML。
@@ -687,19 +684,17 @@ OpenCode 虽然是新增接入点，不替换整个配置语义，但仍会修�
 
 ```toml
 model = "用户选择的模型 ID"
-model_provider = "testmodelalive"
-disable_response_storage = true
+model_provider = "MyEndpoint"
 
-[model_providers.testmodelalive]
-name = "TestModelAlive"
+[model_providers.MyEndpoint]
+name = "MyEndpoint"
 base_url = "https://example.com/v1"
 wire_api = "responses"
-requires_openai_auth = true
 ```
 
 字段处理：
 
-- 修改：`model`、`model_provider`、`disable_response_storage`、`model_providers.testmodelalive`。
+- 修改：`model`、`model_provider`、`model_providers.<endpoint.name>`。
 - 保留：其他顶层字段、其他 provider、sandbox、approval、history 等用户配置。
 - 删除：初版不主动删除任何字段。
 - Codex 应用配置时必须且只能选择一个模型，用该模型填充顶层 `model`。
@@ -726,7 +721,7 @@ requires_openai_auth = true
 - 如果缺少顶层 `includeGitInstructions`，补齐为 `false`。
 - 设置或覆盖 `env.ANTHROPIC_BASE_URL` 为当前端点 `base_url`。
 - 设置或覆盖 `env.ANTHROPIC_API_KEY` 为当前端点 `api_key`。
-- 如果缺少模型相关字段，使用用户当前选择的 Claude 模型补齐：`ANTHROPIC_MODEL`、`ANTHROPIC_DEFAULT_SONNET_MODEL`、`ANTHROPIC_DEFAULT_OPUS_MODEL`、`ANTHROPIC_DEFAULT_HAIKU_MODEL`。
+- 如果缺少模型相关字段，使用用户当前选择的 Claude 模型补齐：`ANTHROPIC_MODEL`、`ANTHROPIC_DEFAULT_SONNET_MODEL`、`ANTHROPIC_DEFAULT_OPUS_MODEL`、`ANTHROPIC_DEFAULT_HAIKU_MODEL`、`ANTHROPIC_DEFAULT_FABLE_MODEL`。
 - 如果缺少 Claude Code 行为控制字段，按基础格式补齐。
 - 不主动写入 `env.ANTHROPIC_AUTH_TOKEN`。如果原配置里已有该字段，初版保留不删除，由用户在编辑确认框里自行删减。
 
@@ -747,6 +742,7 @@ requires_openai_auth = true
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "用户选择的模型 ID",
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "用户选择的模型 ID",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "用户选择的模型 ID",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL": "用户选择的模型 ID",
     "CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS": "1",
     "ENABLE_PROMPT_CACHING_1H": "1",
     "CLAUDE_CODE_ATTRIBUTION_HEADER": "0",
@@ -764,7 +760,7 @@ requires_openai_auth = true
 - 补齐缺失字段：`$schema`、`includeGitInstructions`、模型相关 env、Claude Code 行为控制 env。
 - 保留：其他 settings 字段、permissions、hooks、mcpServers、env 中其他变量等。
 - 删除：初版不主动删除任何字段。
-- 模型字段使用用户当前选择的 Claude 模型 ID 填充四个模型字段。
+- 模型字段使用用户当前选择的 Claude 模型 ID 填充 `ANTHROPIC_MODEL` 以及默认 Sonnet、Opus、Haiku、Fable 模型字段。
 - Claude 应用配置时必须且只能选择一个模型。
 - 如果当前没有选择模型，或选择了多个模型，预览生成失败并提示用户只选择一个模型。
 - 最终写入内容以用户在编辑确认框中确认的 `edited_config` 为准。
@@ -807,10 +803,11 @@ requires_openai_auth = true
 
 OpenCode 的目标是“新增入口”，因此不能重写整个配置。推荐策略：
 
-- 如果文件不存在，创建基础 JSONC 配置。
+- 如果文件不存在，创建基础 JSON 配置。
 - 如果文件存在，先解析原配置并追加入口。
-- 新入口 key 优先使用 `testmodelalive`。
-- 如果 `testmodelalive` 已存在，不覆盖原入口，生成带序号的新 key，例如 `testmodelalive-2`、`testmodelalive-3`。这样严格满足“新增接入点”。
+- 新入口 key 使用当前端点名称 `endpoint.name`。
+- 如果同名 provider 已存在，不覆盖原入口，直接返回错误：`OpenCode provider '<name>' already exists`。
+- 用户可通过修改端点名称或使用“从 OpenCode 移除”先删除匹配 provider 后再应用。
 
 建议写入结构：
 
@@ -818,9 +815,8 @@ OpenCode 的目标是“新增入口”，因此不能重写整个配置。推�
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "testmodelalive": {
+    "MyEndpoint": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "TestModelAlive",
       "options": {
         "baseURL": "https://example.com/v1",
         "apiKey": "sk-xxx"
@@ -841,19 +837,16 @@ OpenCode 的目标是“新增入口”，因此不能重写整个配置。推�
 说明：
 
 - 上述结构是默认预览内容，最终写入内容以用户在编辑确认框中确认的 `edited_config` 为准。
-- OpenCode 应用配置时允许选择多个模型。默认预览会把用户选择的每个模型写入 `provider.testmodelalive*.models`。
-- OpenCode 配置是 JSONC，Rust 标准 `serde_json` 无法直接解析注释和尾逗号。
-- 为保持实现简单，初版可以采用保守策略：
-  - 文件不存在时写入完整 JSONC。
-  - 文件存在时，如果能按 JSON 解析，则保留所有未知字段，合并新的 `provider.testmodelalive*` 后写回 pretty JSON。
-  - 文件存在但不是合法 JSON 时，不覆盖，返回错误并提示用户手动处理；备份文件已经生成。
-- 如果必须支持完整 JSONC 解析，需要新增 Rust crate，例如 `json_comments` 或 `jsonc-parser`。这会增加依赖和测试范围，不建议初版引入。
+- OpenCode 应用配置时允许选择多个模型。默认预览会把用户选择的每个模型写入 `provider.<endpoint.name>.models`。
+- OpenCode 可选择默认模型；若选择，预览会写入顶层 `model` 和 `small_model`，值为 `<endpoint.name>/<model>`。
+- 当前实现内置轻量 JSONC 处理：移除注释和尾逗号后用 `serde_json` 解析，最终写回 pretty JSON。
+- 文件存在但解析后不是对象，或无法解析为 JSON/JSONC 时，预览失败且不写入。
 
 字段处理：
 
-- 修改：`provider` 对象，新增 `testmodelalive*` entry，并写入用户选择的多个模型。
+- 修改：`provider` 对象，新增 `<endpoint.name>` entry，并写入用户选择的多个模型；可选修改顶层 `model` 和 `small_model`。
 - 保留：除新增 entry 外的所有字段，包括已有 provider、model、theme、mcp、formatter 等。
-- 删除：不主动删除任何字段，不覆盖已有 `testmodelalive*` entry。
+- 删除：应用 OpenCode 配置时不主动删除任何字段，不覆盖已有同名 entry。“从 OpenCode 移除”会按当前端点的 URL 和 API Key 匹配 provider 并删除，若顶层 `model` 或 `small_model` 指向该 provider，也会一并移除。
 
 ## 真实 CLI 配置测试方案
 
@@ -866,7 +859,7 @@ OpenCode 的目标是“新增入口”，因此不能重写整个配置。推�
 - OpenCode 使用默认配置目录。
 - 不修改任何真实 CLI 配置，只运行命令并收集输出。
 
-入口：应用成功结果弹窗中的“用当前配置测试”按钮。
+入口：测试模型页控制栏中的“测试当前配置”按钮，以及应用成功结果弹窗中的“用当前配置测试”按钮。
 
 ### Codex 真实配置测试
 
@@ -910,13 +903,13 @@ claude --debug --verbose -p "{prompt}"
 
 模型规则：允许一个或多个模型。对每个选中模型分别运行一次测试。
 
-建议命令需要实施前用本机 OpenCode CLI 确认。初版设计保留为适配函数：
+当前实现命令：
 
 ```text
-opencode run --model "testmodelalive/{model}" "{prompt}"
+opencode run --model "{endpoint_name}/{model}" "{prompt}"
 ```
 
-如果当前 OpenCode CLI 实际命令不是 `run --model`，实现时应只修改 `test_runner/opencode.rs`，不影响配置写入模块。
+OpenCode 真实配置测试要求请求携带 `endpoint_name`，通常为当前端点名称。
 
 运行环境：
 
@@ -926,11 +919,11 @@ opencode run --model "testmodelalive/{model}" "{prompt}"
 
 ### 输出与成功判断
 
-- 返回结构复用现有 `TestResult`。
-- 每个模型生成一条结果。
+- 通过 `Channel<TestMessage>` 复用现有日志和结果事件。
+- 每个模型生成一条 `TestResult` 结果事件。
 - 成功判断复用现有 `success_keyword` 匹配逻辑。
-- 超时复用测试设置中的 `timeout_seconds`。
-- 日志 UI 必须标明“真实 CLI 配置测试”，避免和临时配置测试混淆。
+- 超时使用测试弹窗的超时时间输入值，默认 120 秒。
+- 日志输出 `starting real CLI config test: target=<target>`，避免和临时配置测试混淆。
 
 ## 校验规则
 
@@ -961,7 +954,7 @@ opencode run --model "testmodelalive/{model}" "{prompt}"
 - 无当前端点：`请先打开一个测试端点。`
 - URL 为空：`端点 URL 不能为空。`
 - Key 为空：`API Key 不能为空。`
-- 端点类型不支持：`仅支持 codex 或 claude 类型端点。`
+- 端点类型不支持：`仅支持 codex、claude 或 opencode 类型端点。`
 - 目标不支持：`仅支持 Codex、Claude 或 OpenCode。`
 - 端点类型与目标不匹配：`当前端点不能应用到所选 CLI。`
 - 未选择模型：`请至少选择一个模型。`
@@ -1011,11 +1004,11 @@ struct CliConfigWriteResult {
 
 ## 源码文件规划
 
-现有后端逻辑集中在 `src-tauri/src/lib.rs`，前端逻辑集中在 `frontend/main.ts`。实现本功能前允许并建议先重构，避免继续把设置读写、CLI 配置合并、备份还原和 UI 弹窗都塞进单个文件。
+当前实现已经完成后端和前端的模块拆分，`src-tauri/src/lib.rs` 只保留 Tauri command 注册，`frontend/main.ts` 只负责启动应用。
 
 ### 后端 Rust
 
-建议将 `src-tauri/src/lib.rs` 保留为 Tauri 入口和 command 注册文件，业务逻辑拆到独立模块：
+当前后端结构：
 
 ```text
 src-tauri/src/
@@ -1073,7 +1066,7 @@ src-tauri/src/
 
 ### 前端 TypeScript
 
-建议将 `frontend/main.ts` 拆成应用入口、状态、API、视图和弹窗模块：
+当前前端结构：
 
 ```text
 frontend/
@@ -1089,15 +1082,17 @@ frontend/
     cliConfig.ts
   ui/
     renderApp.ts
-    toast.ts
     modal.ts
     endpointForm.ts
     endpointList.ts
-    modelPicker.ts
+    modelList.ts
     testDialog.ts
     testSettingsDialog.ts
-    cliConfigPreviewDialog.ts
+    cliConfigDialog.ts
     restoreConfigDialog.ts
+    logPanel.ts
+    elements.ts
+    app.ts
   utils/
     mask.ts
     dom.ts
@@ -1105,7 +1100,8 @@ frontend/
 
 职责划分：
 
-- `main.ts`：应用启动、初始化状态、绑定顶层事件。
+- `main.ts`：应用启动。
+- `ui/app.ts`：初始化状态、绑定顶层事件、协调各 UI 模块。
 - `types.ts`：前端共享类型，例如 `SavedEndpoint`、`CliConfigPreview`、`RestoreSelection`。
 - `state.ts`：当前端点、模型选择、测试状态、语言等前端状态。
 - `api/tauri.ts`：`invoke` 包装、错误格式化。
@@ -1113,10 +1109,9 @@ frontend/
 - `api/testModels.ts`：拉取模型和测试模型 API。
 - `api/cliConfig.ts`：`build_cli_config_preview`、`apply_cli_config`、`restore_original_cli_config` API。
 - `ui/renderApp.ts`：主界面骨架渲染。
-- `ui/toast.ts`：toast 展示。
 - `ui/modal.ts`：通用确认框/编辑框基础能力。
 - `ui/testDialog.ts`：测试模型弹窗；根据端点类型展示应用按钮。
-- `ui/cliConfigPreviewDialog.ts`：应用前的配置预览和编辑确认弹窗。
+- `ui/cliConfigDialog.ts`：应用前的配置预览和编辑确认弹窗、应用结果弹窗。
 - `ui/restoreConfigDialog.ts`：主界面“还原配置”勾选弹窗。
 - `utils/mask.ts`：API Key 脱敏。
 - `utils/dom.ts`：DOM 查询和事件辅助函数。
@@ -1129,32 +1124,32 @@ frontend/
 - `i18n.ts` 继续保留文案，但新增文案按功能分组排列。
 - 样式可以先保留在 `styles.css`，如果继续增长，再拆成 `frontend/styles/*.css`。
 
-### 重构顺序
+### 已完成重构顺序
 
-1. 后端先抽出 `models.rs`、`paths.rs`、`settings.rs`，保证现有端点和测试设置行为不变。
-2. 后端再抽出 `test_runner/`，把现有 Codex/Claude 测试逻辑从 `lib.rs` 移出。
-3. 后端新增 `cli_config/` 模块，实现本设计的新能力。
-4. 前端先抽出 `types.ts`、`state.ts`、`api/`，保持 UI 不变。
-5. 前端再抽出测试弹窗和设置弹窗。
-6. 最后新增配置预览编辑弹窗和还原勾选弹窗。
+1. 后端已抽出 `models.rs`、`paths.rs`、`settings.rs`。
+2. 后端已抽出 `test_runner/`，Codex/Claude/OpenCode 测试逻辑从 `lib.rs` 移出。
+3. 后端已新增 `cli_config/` 模块，实现预览、应用、备份、还原和 OpenCode 移除预览。
+4. 前端已抽出 `types.ts`、`state.ts`、`api/`。
+5. 前端已抽出测试弹窗、设置弹窗、日志、端点表单/列表、模型列表。
+6. 前端已新增配置预览编辑弹窗和还原勾选弹窗。
 
 这样可以把“结构性重构”和“功能实现”分阶段提交，降低一次性改动风险。
 
 ## 实施步骤
 
-1. 先做源码文件拆分，把现有 `src-tauri/src/lib.rs` 和 `frontend/main.ts` 中与本功能相关的逻辑迁移到独立模块。
-2. 后端新增返回结构体、`build_cli_config_preview`、`apply_cli_config`、`restore_original_cli_config` 和 `test_cli_with_real_config` command。
-3. 后端实现 `settings.json` 统一读写、`backup_if_exists`、原始基线写入、真实 CLI 路径解析、Codex 写入、Claude 写入、OpenCode 新增入口。
-4. 后端实现按 `selected_items` 读取原始基线并恢复配置。
-5. 注册 command 到 `tauri::generate_handler!`。
-6. 前端 i18n 增加按钮、确认、结果和错误文案。
-7. 前端测试控制栏按端点类型展示应用按钮：`codex` 展示 Codex，`claude` 展示 Claude，`opencode` 展示 OpenCode。
-8. 前端主界面增加“还原配置”按钮和勾选式还原弹窗。
-9. 前端点击应用按钮后调用 `build_cli_config_preview`，展示可编辑配置内容。
-10. 前端在用户确认后调用 `invoke("apply_cli_config", { endpoint: testEndpoint, target, editedConfig })`。
-11. 前端在应用成功结果弹窗中增加“用当前配置测试”按钮，调用 `test_cli_with_real_config`。
-12. 更新 README 的存储/安全说明。
-13. 手动验证八种场景：`codex` 端点只展示并应用 Codex、`claude` 端点只展示并应用 Claude、`opencode` 端点只展示并应用 OpenCode、应用前可编辑配置内容、目标文件不存在、目标文件存在、OpenCode 配置无法 JSON 解析、勾选还原到本应用首次修改前的原始配置、应用后用真实 CLI 配置测试。
+1. 已完成源码文件拆分，把 `src-tauri/src/lib.rs` 和 `frontend/main.ts` 中与本功能相关的逻辑迁移到独立模块。
+2. 已新增返回结构体、`build_cli_config_preview`、`build_remove_opencode_config_preview`、`load_cli_config_baseline_items`、`apply_cli_config`、`restore_original_cli_config` 和 `test_cli_with_real_config` command。
+3. 已实现 `settings.json` 统一读写、原始基线写入、真实 CLI 路径解析、Codex 写入、Claude 写入、OpenCode 新增入口。
+4. 已实现按 `selected_items` 读取原始基线并恢复配置。
+5. 已注册 command 到 `tauri::generate_handler!`。
+6. 已在前端 i18n 增加按钮、确认、结果和错误文案。
+7. 已在前端测试控制栏按端点类型展示应用按钮：`codex` 展示 Codex，`claude` 展示 Claude，`opencode` 展示 OpenCode 和从 OpenCode 移除。
+8. 已在前端主界面增加“还原配置”按钮和勾选式还原弹窗。
+9. 已实现点击应用按钮后调用 `build_cli_config_preview`，展示可编辑配置内容。
+10. 已实现在用户确认后调用 `invoke("apply_cli_config", { endpoint: testEndpoint, target, editedConfig })`。
+11. 已在测试模型页和应用成功结果弹窗中提供“用当前配置测试”入口，调用 `test_cli_with_real_config`。
+12. README 已补充存储/安全说明。
+13. 仍建议手动验证：`codex` 端点只展示并应用 Codex、`claude` 端点只展示并应用 Claude、`opencode` 端点只展示并应用 OpenCode/移除 OpenCode、应用前可编辑配置内容、目标文件不存在、目标文件存在、OpenCode 配置无法 JSON/JSONC 解析、勾选还原到本应用首次修改前的原始配置、应用后用真实 CLI 配置测试。
 
 ## 测试建议
 
@@ -1178,8 +1173,8 @@ frontend/
 - 在 Windows 下验证配置 replace 逻辑能覆盖已存在文件。
 - 在三端验证命令执行不依赖 shell 转义，prompt 中包含引号和换行也能作为单个参数传入。
 
-## 待确认问题
+## 当前实现仍需关注
 
-- OpenCode 当前版本是否接受上述 `provider.testmodelalive` 配置结构和 `@ai-sdk/openai-compatible` provider。实施前建议分别在 Windows、macOS、Linux 用本机 OpenCode 配置样例或官方文档确认。
-- OpenCode 在 Windows/macOS/Linux 的默认配置路径是否一致。实施前必须以 CLI 文档或本机实际行为为准，更新 `paths.rs`。
-- OpenCode 真实配置测试命令是否为 `opencode run --model ...`。实施前必须确认当前 CLI 版本命令格式。
+- OpenCode 当前实现使用 `provider.<endpoint.name>` 配置结构和 `@ai-sdk/openai-compatible` provider；如果 OpenCode CLI 后续配置格式变化，需要同步更新 `cli_config/opencode.rs` 和 `test_runner/opencode.rs`。
+- OpenCode 路径当前由 `paths.rs` 集中解析：Windows 为 `%USERPROFILE%\.config\opencode\opencode.json`，macOS 为 `$HOME/Library/Application Support/opencode/opencode.json`，Linux 为 `${XDG_CONFIG_HOME:-$HOME/.config}/opencode/opencode.json`。如果 CLI 文档调整默认路径，应只改 `paths.rs`。
+- OpenCode 真实配置测试当前命令为 `opencode run --model "<endpoint_name>/<model>" "<prompt>"`。如果 CLI 命令格式变化，应只改 `test_runner/opencode.rs`。

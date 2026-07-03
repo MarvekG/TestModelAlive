@@ -43,6 +43,7 @@ pub(crate) fn build_claude_preview(
                 "ANTHROPIC_DEFAULT_SONNET_MODEL",
                 "ANTHROPIC_DEFAULT_OPUS_MODEL",
                 "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+                "ANTHROPIC_DEFAULT_FABLE_MODEL",
             ] {
                 env_object
                     .entry(key.to_string())
