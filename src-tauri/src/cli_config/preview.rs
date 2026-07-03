@@ -14,7 +14,7 @@ pub(crate) fn build_preview(
     endpoint: SavedEndpoint,
     target: CliConfigTargetKind,
     selected_models: Vec<String>,
-    set_default_model: bool,
+    default_model: Option<String>,
 ) -> Result<CliConfigPreview, String> {
     validate_cli_target(&endpoint, &target, &selected_models)?;
     let files = cli_target_files(&target)?;
@@ -25,12 +25,9 @@ pub(crate) fn build_preview(
         CliConfigTargetKind::Claude => {
             claude::build_claude_preview(&endpoint, &selected_models[0], &files)?
         }
-        CliConfigTargetKind::Opencode => opencode::build_opencode_preview(
-            &endpoint,
-            &selected_models,
-            &files,
-            set_default_model,
-        )?,
+        CliConfigTargetKind::Opencode => {
+            opencode::build_opencode_preview(&endpoint, &selected_models, &files, default_model)?
+        }
     };
     Ok(CliConfigPreview {
         endpoint_type: endpoint.endpoint_type,

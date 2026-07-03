@@ -13,7 +13,7 @@ import { clearEndpointForm, readEndpointForm } from "./endpointForm";
 import { endpointTypeLabel, renderEndpointRows, setEndpointChecks as updateEndpointChecks } from "./endpointList";
 import { invertSelection, renderCheckList, setSelection } from "./modelList";
 import { appendTimestampedLog, renderTestLogs as renderLogPanel } from "./logPanel";
-import { chooseFetchedTestModels, renderResults as renderResultRows } from "./testDialog";
+import { chooseFetchedTestModels, chooseSingleModel, renderResults as renderResultRows } from "./testDialog";
 import { closeTestSettingsDialog, openTestSettingsDialog, resetTestSettingsDialog } from "./testSettingsDialog";
 import { cliTargetLabel, showApplyCliConfigResultDialog, showCliConfigPreviewDialog } from "./cliConfigDialog";
 import { restoreResultDetail, showRestoreConfigDialog } from "./restoreConfigDialog";
@@ -251,10 +251,8 @@ export function initApp() {
     }
     setApplyBusy(true);
     try {
-      const setDefaultModel = target === "opencode" && models.length === 1
-        ? await showConfirm(cliTargetLabel(target), t("setOpenCodeDefaultModel"))
-        : false;
-      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, setDefaultModel);
+      const defaultModel = await chooseOpenCodeDefaultModel(target, models);
+      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel);
       const editedConfig = await showCliConfigPreviewDialog({ preview, models, t, isModalOpen: isTestPanelOpen, showAlert });
       if (!editedConfig) return;
       const result = await applyCliConfigApi(testEndpoint, target, editedConfig);
@@ -286,6 +284,12 @@ export function initApp() {
       setApplyBusy(false);
       alertError(t("startTestFailed"), error);
     }
+  }
+
+  async function chooseOpenCodeDefaultModel(target: CliConfigTargetKind, models: string[]) {
+    if (target !== "opencode") return null;
+    if (!(await showConfirm(cliTargetLabel(target), t("setOpenCodeDefaultModel")))) return null;
+    return chooseSingleModel({ title: t("chooseDefaultModel"), models, t, isModalOpen: isTestPanelOpen });
   }
 
   async function runRealConfigTests() {

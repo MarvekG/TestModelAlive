@@ -87,3 +87,53 @@ export function chooseFetchedTestModels(options: {
     overlay.querySelector<HTMLButtonElement>('button[data-action="save"]')?.focus();
   });
 }
+
+export function chooseSingleModel(options: {
+  title: string;
+  models: string[];
+  t: (key: string) => string;
+  isModalOpen: () => boolean;
+}): Promise<string | null> {
+  const { title, models, t, isModalOpen } = options;
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "choice-modal";
+    overlay.innerHTML = `
+      <div class="choice-dialog" role="dialog" aria-modal="true">
+        <h2>${escapeHtml(title)}</h2>
+        <select class="model-select">
+          ${models.map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join("")}
+        </select>
+        <div class="actions choice-actions">
+          <button data-action="confirm">${escapeHtml(t("confirm"))}</button>
+          <button data-action="cancel" class="secondary">${escapeHtml(t("cancel"))}</button>
+        </div>
+      </div>
+    `;
+    const finish = (model: string | null) => {
+      document.removeEventListener("keydown", onKeyDown);
+      overlay.remove();
+      document.body.classList.toggle("modal-open", isModalOpen());
+      resolve(model);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") finish(null);
+    };
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) finish(null);
+    });
+    overlay.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (button.dataset.action === "confirm") {
+          finish(overlay.querySelector<HTMLSelectElement>("select")?.value ?? null);
+        } else {
+          finish(null);
+        }
+      });
+    });
+    document.body.classList.add("modal-open");
+    document.addEventListener("keydown", onKeyDown);
+    document.body.append(overlay);
+    overlay.querySelector<HTMLSelectElement>("select")?.focus();
+  });
+}
