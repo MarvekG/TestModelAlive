@@ -257,7 +257,7 @@ export function initApp() {
       await showAlert(t("testModels"), t("testStillRunning"));
       return;
     }
-    const models = selectedTestModels();
+    let models = selectedTestModels();
     if (target === "opencode" && models.length === 0) {
       await showAlert(cliTargetLabel(target), t("selectAtLeastOneModelForOpenCode"));
       return;
@@ -268,6 +268,7 @@ export function initApp() {
     }
     setApplyBusy(true);
     try {
+      models = await modelsForCliConfig(target, models);
       const defaultModel = await chooseOpenCodeDefaultModel(target, models);
       const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel);
       const editedConfig = await showCliConfigPreviewDialog({ preview, models, t, isModalOpen: isTestPanelOpen, showAlert });
@@ -280,6 +281,12 @@ export function initApp() {
     } finally {
       setApplyBusy(false);
     }
+  }
+
+  async function modelsForCliConfig(target: CliConfigTargetKind, models: string[]) {
+    if (target !== "claude") return models;
+    if (!(await showConfirm(cliTargetLabel(target), t("append1mForClaudeConfig")))) return models;
+    return models.map((model) => (model.endsWith("[1m]") ? model : `${model}[1m]`));
   }
 
   async function testCliWithRealConfig(target: CliConfigTargetKind, models: string[]) {

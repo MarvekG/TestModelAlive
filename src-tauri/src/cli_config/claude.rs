@@ -44,10 +44,12 @@ pub(crate) fn build_claude_preview(
                 "ANTHROPIC_DEFAULT_OPUS_MODEL",
                 "ANTHROPIC_DEFAULT_HAIKU_MODEL",
                 "ANTHROPIC_DEFAULT_FABLE_MODEL",
+                "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME",
+                "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME",
+                "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME",
+                "ANTHROPIC_DEFAULT_FABLE_MODEL_NAME",
             ] {
-                env_object
-                    .entry(key.to_string())
-                    .or_insert_with(|| Value::String(model.to_string()));
+                env_object.insert(key.to_string(), Value::String(model.to_string()));
             }
             for (key, value) in [
                 ("CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS", "1"),
