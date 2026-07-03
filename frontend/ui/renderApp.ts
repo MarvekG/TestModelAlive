@@ -8,6 +8,7 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
     <header class="app-bar">
       <h1>TestModelAlive</h1>
       <span id="subtitle">${t("subtitle")}</span>
+      <button id="open-docs" class="secondary docs-toggle">${t("docs")}</button>
       <button id="language-toggle" class="secondary language-toggle">${language === "zh" ? "English" : "中文"}</button>
     </header>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -93,6 +94,42 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
           </div>
         </div>
         <div id="fetched-models" class="check-list empty">${t("noModels")}</div>
+      </div>
+    </section>
+
+    <section id="docs-panel" class="docs-modal hidden" aria-modal="true" role="dialog" aria-labelledby="feature-guide-title">
+      <div class="docs-dialog">
+        <div class="modal-title">
+          <h2 id="feature-guide-title">${t("docs")}</h2>
+          <button id="close-docs" class="secondary">${t("close")}</button>
+        </div>
+        <div class="guide-panel">
+          <div class="guide-block">
+            <h3>${t("featureGuide")}</h3>
+            <div class="guide-items">
+              <p>${t("featureEndpointManagement")}</p>
+              <p>${t("featureModelTesting")}</p>
+              <p>${t("featureCliConfig")}</p>
+            </div>
+          </div>
+          <div class="guide-block steps-block">
+            <h3>${t("usageSteps")}</h3>
+            <h4>${t("homeUsageSteps")}</h4>
+            <ol class="guide-steps">
+              <li>${t("homeUsageStep1")}</li>
+              <li>${t("homeUsageStep2")}</li>
+              <li>${t("homeUsageStep3")}</li>
+            </ol>
+            <h4>${t("testUsageSteps")}</h4>
+            <ol class="guide-steps">
+              <li>${t("testUsageStep1")}</li>
+              <li>${t("testUsageStep2")}</li>
+              <li>${t("testUsageStep3")}</li>
+              <li>${t("testUsageStep4")}</li>
+              <li>${t("testUsageStep5")}</li>
+            </ol>
+          </div>
+        </div>
       </div>
     </section>
 

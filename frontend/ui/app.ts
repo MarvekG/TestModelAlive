@@ -53,6 +53,8 @@ export function initApp() {
 
   function bindControls() {
     bind("fetch-models", "click", fetchModels);
+    bind("open-docs", "click", openDocsPanel);
+    bind("close-docs", "click", closeDocsPanel);
     bind("language-toggle", "click", () => {
       localStorage.setItem("language", language === "zh" ? "en" : "zh");
       window.location.reload();
@@ -98,6 +100,16 @@ export function initApp() {
       testLogChunks = [];
       renderTestLogs();
     });
+  }
+
+  function openDocsPanel() {
+    elements.docsPanel.classList.remove("hidden");
+    document.body.classList.add("modal-open");
+  }
+
+  function closeDocsPanel() {
+    elements.docsPanel.classList.add("hidden");
+    document.body.classList.remove("modal-open");
   }
 
   async function loadEndpoints() {

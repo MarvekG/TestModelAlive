@@ -156,8 +156,11 @@ tr.selected {
   padding: 10px 14px;
 }
 
-.language-toggle {
+.docs-toggle {
   margin-left: auto;
+}
+
+.language-toggle {
   min-width: 76px;
 }
 
@@ -191,6 +194,63 @@ tr.selected {
 .toast.visible {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+.guide-panel {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
+}
+
+.guide-block {
+  min-width: 0;
+}
+
+.guide-block h3 {
+  color: #172033;
+  font-size: 1rem;
+  margin: 0 0 8px;
+}
+
+.guide-block h4 {
+  color: #263349;
+  font-size: 0.9rem;
+  margin: 10px 0 6px;
+}
+
+.guide-block h4:first-of-type {
+  margin-top: 0;
+}
+
+.guide-items {
+  display: grid;
+  gap: 6px;
+}
+
+.guide-items p,
+.guide-steps {
+  color: #526078;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.guide-items p {
+  background: #f7f9fd;
+  border: 1px solid #e9eef6;
+  border-radius: 9px;
+  padding: 7px 9px;
+}
+
+.guide-steps {
+  display: grid;
+  gap: 6px;
+  padding-left: 20px;
+}
+
+.guide-steps li::marker {
+  color: #2454d6;
+  font-weight: 800;
 }
 
 .workspace {
@@ -363,6 +423,7 @@ tr.selected {
 }
 
 .test-modal,
+.docs-modal,
 .settings-modal,
 .choice-modal {
   align-items: center;
@@ -376,6 +437,10 @@ tr.selected {
 }
 
 .settings-modal {
+  z-index: 20;
+}
+
+.docs-modal {
   z-index: 20;
 }
 
@@ -408,6 +473,19 @@ tr.selected {
   max-width: 680px;
   padding: 14px;
   width: min(680px, 100%);
+}
+
+.docs-dialog {
+  background: #f8fafc;
+  border: 1px solid #dfe6f1;
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 28%);
+  display: grid;
+  gap: 12px;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: 14px;
+  width: min(880px, 100%);
 }
 
 .choice-dialog {
@@ -758,6 +836,10 @@ tr.selected {
 
   .workspace {
     overflow: visible;
+  }
+
+  .guide-panel {
+    grid-template-columns: 1fr;
   }
 
   .workspace,
