@@ -1,4 +1,3 @@
-use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -6,59 +5,15 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::ipc::Channel;
 use tauri::Emitter;
-use time::OffsetDateTime;
 
 use crate::models::{LogEvent, TestMessage};
 use crate::test_runner::AppState;
-
-pub(crate) struct RestorableFile {
-    path: PathBuf,
-    backup: Option<PathBuf>,
-    existed: bool,
-}
 
 pub(crate) struct TestCommand {
     pub(crate) program: String,
     pub(crate) args: Vec<String>,
     pub(crate) envs: Vec<(String, String)>,
     pub(crate) env_remove: Vec<String>,
-}
-
-impl RestorableFile {
-    pub(crate) fn new(path: impl Into<PathBuf>) -> Self {
-        Self {
-            path: path.into(),
-            backup: None,
-            existed: false,
-        }
-    }
-
-    pub(crate) fn begin(&mut self) -> Result<(), String> {
-        self.existed = self.path.exists();
-        if self.existed {
-            let backup = next_backup_path(&self.path)?;
-            if let Some(parent) = backup.parent() {
-                fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-            }
-            fs::copy(&self.path, &backup).map_err(|err| err.to_string())?;
-            self.backup = Some(backup);
-        }
-        Ok(())
-    }
-}
-
-impl Drop for RestorableFile {
-    fn drop(&mut self) {
-        if let Some(backup) = &self.backup {
-            if let Some(parent) = self.path.parent() {
-                let _ = fs::create_dir_all(parent);
-            }
-            let _ = fs::copy(backup, &self.path);
-            let _ = fs::remove_file(backup);
-        } else if !self.existed {
-            let _ = fs::remove_file(&self.path);
-        }
-    }
 }
 
 pub(crate) fn run_command(
@@ -217,26 +172,6 @@ pub(crate) fn terminate_child(child: &Arc<Mutex<Child>>) -> Result<(), String> {
         }
     }
     Ok(())
-}
-
-fn next_backup_path(path: &Path) -> Result<PathBuf, String> {
-    let stamp = OffsetDateTime::now_utc().unix_timestamp_nanos();
-    for index in 0..1000 {
-        let name = format!(
-            "{}.{}.{}.bak",
-            path.file_name().unwrap_or_default().to_string_lossy(),
-            stamp,
-            index
-        );
-        let candidate = path.with_file_name(name);
-        if !candidate.exists() {
-            return Ok(candidate);
-        }
-    }
-    Err(format!(
-        "could not allocate backup path for {}",
-        path.display()
-    ))
 }
 
 pub(crate) fn stop_requested(state: &tauri::State<'_, AppState>) -> bool {
