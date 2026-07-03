@@ -235,11 +235,6 @@ fn default_apply_history_limit() -> usize {
 fn default_opencode_model_variants() -> BTreeMap<String, Value> {
     let gpt_variants = serde_json::json!({
         "none": {},
-        "minimal": {
-            "reasoningEffort": "minimal",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
         "low": {
             "reasoningEffort": "low",
             "textVerbosity": "low",
@@ -259,20 +254,88 @@ fn default_opencode_model_variants() -> BTreeMap<String, Value> {
             "reasoningEffort": "xhigh",
             "textVerbosity": "low",
             "reasoningSummary": "auto"
+        }
+    });
+    let gpt_pro_variants = serde_json::json!({
+        "medium": {
+            "reasoningEffort": "medium",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
         },
-        "max": {
-            "reasoningEffort": "max",
+        "high": {
+            "reasoningEffort": "high",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "xhigh": {
+            "reasoningEffort": "xhigh",
             "textVerbosity": "low",
             "reasoningSummary": "auto"
         }
     });
+    let generic_reasoning_variants = serde_json::json!({
+        "low": { "reasoningEffort": "low" },
+        "medium": { "reasoningEffort": "medium" },
+        "high": { "reasoningEffort": "high" }
+    });
+    let deepseek_v4_variants = serde_json::json!({
+        "low": { "reasoningEffort": "low" },
+        "medium": { "reasoningEffort": "medium" },
+        "high": { "reasoningEffort": "high" },
+        "max": { "reasoningEffort": "max" }
+    });
+    let glm_variants = serde_json::json!({
+        "high": { "reasoningEffort": "high" },
+        "max": { "reasoningEffort": "max" }
+    });
+    let minimax_m3_variants = serde_json::json!({
+        "none": { "thinking": { "type": "disabled" } },
+        "thinking": { "thinking": { "type": "adaptive" } }
+    });
+    let north_mini_code_variants = serde_json::json!({
+        "none": { "reasoningEffort": "none" },
+        "high": { "reasoningEffort": "high" }
+    });
+    let empty_variants = serde_json::json!({});
     [
         ("gpt-5.4", gpt_variants.clone()),
-        ("gpt-5.4-pro", gpt_variants.clone()),
+        ("gpt-5.4-pro", gpt_pro_variants.clone()),
         ("gpt-5.4-mini", gpt_variants.clone()),
         ("gpt-5.4-nano", gpt_variants.clone()),
         ("gpt-5.5", gpt_variants.clone()),
-        ("gpt-5.5-pro", gpt_variants),
+        ("gpt-5.5-pro", gpt_pro_variants),
+        ("claude-fable-5", generic_reasoning_variants.clone()),
+        ("claude-opus-4-8", generic_reasoning_variants.clone()),
+        ("claude-opus-4-7", generic_reasoning_variants.clone()),
+        ("claude-opus-4-6", generic_reasoning_variants.clone()),
+        ("claude-opus-4-5", generic_reasoning_variants.clone()),
+        ("claude-sonnet-5", generic_reasoning_variants.clone()),
+        ("claude-sonnet-4-6", generic_reasoning_variants.clone()),
+        ("claude-sonnet-4-5", generic_reasoning_variants.clone()),
+        ("claude-haiku-4-5", generic_reasoning_variants.clone()),
+        ("gemini-3.5-flash", generic_reasoning_variants.clone()),
+        ("gemini-3.1-pro", generic_reasoning_variants.clone()),
+        ("gemini-3-flash", generic_reasoning_variants.clone()),
+        ("deepseek-v4-pro", deepseek_v4_variants.clone()),
+        ("deepseek-v4-flash", deepseek_v4_variants),
+        ("glm-5.2", glm_variants.clone()),
+        ("glm-5.1", empty_variants.clone()),
+        ("glm-5", empty_variants.clone()),
+        ("kimi-k2.7-code", empty_variants.clone()),
+        ("kimi-k2.6", empty_variants.clone()),
+        ("kimi-k2.5", empty_variants.clone()),
+        ("minimax-m3", minimax_m3_variants),
+        ("minimax-m2.7", empty_variants.clone()),
+        ("minimax-m2.5", empty_variants.clone()),
+        ("qwen3.7-max", empty_variants.clone()),
+        ("qwen3.7-plus", empty_variants.clone()),
+        ("qwen3.6-plus", empty_variants.clone()),
+        ("qwen3.5-plus", empty_variants.clone()),
+        ("grok-build-0.1", empty_variants.clone()),
+        ("big-pickle", empty_variants.clone()),
+        ("mimo-v2.5-free", empty_variants.clone()),
+        ("nemotron-3-ultra-free", empty_variants.clone()),
+        ("north-mini-code-free", north_mini_code_variants),
     ]
     .into_iter()
     .map(|(model, params)| (model.to_string(), params))

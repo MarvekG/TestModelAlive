@@ -85,7 +85,11 @@ pub(crate) fn build_model_entries(
         .map(|model| {
             let mut entry = serde_json::Map::new();
             entry.insert("name".to_string(), Value::String(model.clone()));
-            if let Some(variants) = model_variants.get(model).and_then(Value::as_object) {
+            if let Some(variants) = model_variants
+                .get(model)
+                .and_then(Value::as_object)
+                .filter(|variants| !variants.is_empty())
+            {
                 entry.insert("variants".to_string(), Value::Object(variants.clone()));
             }
             (model.clone(), Value::Object(entry))
