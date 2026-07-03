@@ -7,10 +7,12 @@ use crate::cli_config::types::{
 };
 use crate::models::SavedEndpoint;
 use crate::paths::cli_target_files;
+use crate::settings::read_opencode_model_variants;
 
 use super::{claude, codex, opencode};
 
 pub(crate) fn build_preview(
+    app: &tauri::AppHandle,
     endpoint: SavedEndpoint,
     target: CliConfigTargetKind,
     selected_models: Vec<String>,
@@ -27,11 +29,13 @@ pub(crate) fn build_preview(
             claude::build_claude_preview(&endpoint, &selected_models[0], &files)?
         }
         CliConfigTargetKind::Opencode => {
+            let model_variants = read_opencode_model_variants(app)?;
             let (files, preview_warnings) = opencode::build_opencode_preview_with_warnings(
                 &endpoint,
                 &selected_models,
                 &files,
                 default_model,
+                &model_variants,
             )?;
             warnings = preview_warnings;
             files

@@ -21,13 +21,13 @@ use super::opencode;
 
 #[tauri::command]
 pub fn build_cli_config_preview(
-    _app: tauri::AppHandle,
+    app: tauri::AppHandle,
     endpoint: SavedEndpoint,
     target: CliConfigTargetKind,
     selected_models: Vec<String>,
     default_model: Option<String>,
 ) -> Result<CliConfigPreview, String> {
-    build_preview(endpoint, target, selected_models, default_model)
+    build_preview(&app, endpoint, target, selected_models, default_model)
 }
 
 #[tauri::command]

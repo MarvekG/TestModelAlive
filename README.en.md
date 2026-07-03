@@ -97,13 +97,12 @@ On Windows this resolves to:
 
 Files stored there include:
 
-- `tma_endpoints.json`: saved endpoints and model lists.
-- `test_settings.json`: test prompt and success keyword.
+- `settings.json`: saved endpoints, model lists, test settings, and CLI config restore baselines.
+- `cli-config-apply-history.json`: CLI config apply history.
 - `claude-settings.json`: temporary Claude CLI settings created during tests, overwritten on each test, and kept for troubleshooting.
 - `codex-home/`: isolated Codex home used during tests.
 - `opencode-home/`: isolated OpenCode home used during tests.
-
-If old `tma_endpoints.json` or `test_settings.json` files exist in the current working directory, the app copies them into `~/.TestModelAlive/` on first use.
+- `cli-config-backups/`: backups created before applying or restoring real CLI config files.
 
 ## Testing Models
 
@@ -122,9 +121,8 @@ The success condition is configurable:
 - The prompt must explicitly include the success keyword and require the model to output it.
 - A model is marked available when the command output contains the success keyword.
 
-## Cross-Platform Notes
+## Platform Notes
 
-- Linux is the primary development environment in this repository.
 - Windows support includes `.cmd` / `.bat` CLI shims and process-tree termination through `taskkill /T /F`.
 - macOS and Linux include common CLI search paths such as `/usr/local/bin`, `/opt/homebrew/bin`, and `~/.local/bin`.
 - Cross-compiling Tauri apps can require platform-specific SDKs and resource compilers beyond Rust targets.
@@ -135,6 +133,6 @@ The success condition is configurable:
 
 ## Security
 
-API keys are stored in plaintext inside `~/.TestModelAlive/tma_endpoints.json`.
+API keys are stored in plaintext inside `~/.TestModelAlive/settings.json`; applying an endpoint to a local CLI also writes them into that CLI's config files.
 
 Do not commit or share runtime data files. Relevant local data files are ignored by `.gitignore`.

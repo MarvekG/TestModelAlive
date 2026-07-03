@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test Claude CLI models from endpoint credentials.
 
-By default this script reads claude endpoints from tma_endpoints.json, the same
+By default this script reads claude endpoints from settings.json, the same
 JSON file used by the GUI. Endpoints with type="claude" are selected. If an
 endpoint has no saved models, --models is used.
 """
@@ -35,7 +35,8 @@ LINE = "=" * 72
 SUBLINE = "-" * 72
 SETTINGS_PATH = Path("claude-settings.json")
 MODEL_SEPARATORS = str.maketrans({"，": ","})
-DEFAULT_ENDPOINTS_FILE = Path("tma_endpoints.json")
+DEFAULT_ENDPOINTS_FILE = Path.home() / ".TestModelAlive" / "settings.json"
+FALLBACK_ENDPOINTS_FILE = Path("settings.json")
 
 
 @dataclass(frozen=True)
@@ -111,6 +112,12 @@ def load_endpoints(path: Path, endpoint_type: str = "claude") -> list[Endpoint]:
     if not endpoints:
         raise ValueError(f"no {endpoint_type} endpoints found in {path}")
     return endpoints
+
+
+def resolve_endpoints_file(path: Path) -> Path:
+    if path.exists() or path != DEFAULT_ENDPOINTS_FILE:
+        return path
+    return FALLBACK_ENDPOINTS_FILE
 
 
 def select_endpoints(endpoints: list[Endpoint], last_only: bool) -> list[Endpoint]:
@@ -337,7 +344,7 @@ def main() -> int:
         "--claude-file",
         type=Path,
         default=DEFAULT_ENDPOINTS_FILE,
-        help="endpoint JSON file from GUI",
+        help="endpoint JSON file from GUI; defaults to ~/.TestModelAlive/settings.json, falling back to ./settings.json",
     )
     parser.add_argument("--timeout", type=int, default=120, help="seconds for each claude test")
     parser.add_argument(
@@ -363,9 +370,9 @@ def main() -> int:
         LOG.error("claude command not found in PATH")
         return 127
 
+    endpoints_file = resolve_endpoints_file(args.claude_file)
     endpoints = select_endpoints(
-        filter_endpoints_by_domain(load_endpoints(args.claude_file, "claude"), args.domain),
-        args.last_only,
+        filter_endpoints_by_domain(load_endpoints(endpoints_file, "claude"), args.domain), args.last_only
     )
     if not endpoints:
         LOG.error("no endpoints matched the requested filters")

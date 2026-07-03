@@ -12,6 +12,7 @@ pub(crate) mod process;
 
 use crate::cli_config::types::CliConfigTargetKind;
 use crate::models::{SavedEndpoint, TestMessage, TestModelsRequest, TestResult};
+use crate::settings::read_opencode_model_variants;
 use process::{emit_test_log, run_command, stop_requested, terminate_child, TestCommand};
 
 #[derive(Default)]
@@ -198,7 +199,10 @@ fn run_model_test(
     let command = match endpoint.endpoint_type.as_str() {
         "codex" => codex::prepare_codex(app, endpoint, model, prompt)?,
         "claude" => claude::prepare_claude(app, endpoint, model, prompt)?,
-        "opencode" => opencode::prepare_opencode(app, endpoint, model, prompt)?,
+        "opencode" => {
+            let model_variants = read_opencode_model_variants(app)?;
+            opencode::prepare_opencode(app, endpoint, model, prompt, &model_variants)?
+        }
         _ => {
             return Err(format!(
                 "unsupported endpoint type: {}",

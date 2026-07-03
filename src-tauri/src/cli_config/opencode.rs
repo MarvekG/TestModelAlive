@@ -1,4 +1,5 @@
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -12,6 +13,7 @@ pub(crate) fn build_opencode_preview_with_warnings(
     models: &[String],
     files: &[(String, PathBuf, String)],
     default_model: Option<String>,
+    model_variants: &BTreeMap<String, Value>,
 ) -> Result<(Vec<CliConfigPreviewFile>, Vec<CliConfigPreviewWarning>), String> {
     let (file_id, path, language) = files
         .first()
@@ -49,7 +51,7 @@ pub(crate) fn build_opencode_preview_with_warnings(
                 "baseURL": endpoint.base_url,
                 "apiKey": endpoint.api_key
             },
-            "models": models.iter().map(|model| (model.clone(), serde_json::json!({ "name": model }))).collect::<serde_json::Map<String, Value>>()
+            "models": build_model_entries(models, model_variants)
         }),
     );
     if let Some(model) = default_model {
@@ -72,6 +74,23 @@ pub(crate) fn build_opencode_preview_with_warnings(
         )],
         warnings,
     ))
+}
+
+pub(crate) fn build_model_entries(
+    models: &[String],
+    model_variants: &BTreeMap<String, Value>,
+) -> serde_json::Map<String, Value> {
+    models
+        .iter()
+        .map(|model| {
+            let mut entry = serde_json::Map::new();
+            entry.insert("name".to_string(), Value::String(model.clone()));
+            if let Some(variants) = model_variants.get(model).and_then(Value::as_object) {
+                entry.insert("variants".to_string(), Value::Object(variants.clone()));
+            }
+            (model.clone(), Value::Object(entry))
+        })
+        .collect()
 }
 
 pub(crate) fn remove_matching_provider(

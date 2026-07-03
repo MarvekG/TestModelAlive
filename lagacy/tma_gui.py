@@ -62,7 +62,8 @@ ITEM_CHECKED = Qt.CheckState.Checked
 USER_ROLE = Qt.ItemDataRole.UserRole
 
 
-DATA_FILE = Path("tma_endpoints.json")
+DATA_FILE = Path.home() / ".TestModelAlive" / "settings.json"
+FALLBACK_DATA_FILE = Path("settings.json")
 PROMPT = "You must output exactly OKK and nothing else. Do not explain. Do not add punctuation."
 EXPECTED_OUTPUT = "OKK"
 CHINESE_FONT_CANDIDATES = (
@@ -116,17 +117,23 @@ class RunningProcess:
 class EndpointStore:
     def __init__(self, path: Path = DATA_FILE) -> None:
         self.path = path
+        self.payload: dict[str, object] = {}
         self.endpoints: list[SavedEndpoint] = []
 
     def load(self) -> None:
+        self.path = self._resolve_path(self.path)
         if not self.path.exists():
+            self.payload = {}
             self.endpoints = []
             return
         with self.path.open("r", encoding="utf-8") as fh:
             payload = json.load(fh)
+        if not isinstance(payload, dict):
+            raise ValueError(f"{self.path}: settings must be a JSON object")
+        self.payload = payload
         raw_endpoints = payload.get("endpoints", [])
         if not isinstance(raw_endpoints, list):
-            raise ValueError("tma_endpoints.json: endpoints must be a list")
+            raise ValueError(f"{self.path}: endpoints must be a list")
 
         endpoints: list[SavedEndpoint] = []
         for item in raw_endpoints:
@@ -144,7 +151,12 @@ class EndpointStore:
         self.endpoints = [endpoint for endpoint in endpoints if endpoint.id and endpoint.type and endpoint.base_url]
 
     def save(self) -> None:
-        payload = {"version": 1, "endpoints": [endpoint.__dict__ for endpoint in self.endpoints]}
+        self.path = self._resolve_path(self.path)
+        payload = dict(self.payload)
+        payload.setdefault("version", 1)
+        payload["endpoints"] = [self._endpoint_payload(endpoint) for endpoint in self.endpoints]
+        self.payload = payload
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
     def add(self, endpoint_type: str, base_url: str, api_key: str, models: list[str]) -> SavedEndpoint:
@@ -175,6 +187,38 @@ class EndpointStore:
             if candidate not in existing:
                 return candidate
             index += 1
+
+    def _resolve_path(self, path: Path) -> Path:
+        if path.exists() or path != DATA_FILE:
+            return path
+        return FALLBACK_DATA_FILE
+
+    def _endpoint_payload(self, endpoint: SavedEndpoint) -> dict[str, object]:
+        return {
+            "id": endpoint.id,
+            "name": self._endpoint_name(endpoint),
+            "type": endpoint.type,
+            "base_url": endpoint.base_url,
+            "api_key": endpoint.api_key,
+            "models": endpoint.models,
+        }
+
+    def _endpoint_name(self, endpoint: SavedEndpoint) -> str:
+        raw_name = next(
+            (
+                item.get("name")
+                for item in self.payload.get("endpoints", [])
+                if isinstance(item, dict) and item.get("id") == endpoint.id
+            ),
+            None,
+        )
+        name = str(raw_name or endpoint.id.split("-", 1)[0]).strip()
+        if name and name.isalnum() and name.isascii():
+            return name
+        generated = "".join(ch for ch in endpoint.id if ch.isascii() and ch.isalnum())
+        if generated:
+            return generated
+        return endpoint.type or "endpoint"
 
 
 def mask_key(api_key: str) -> str:
@@ -444,7 +488,7 @@ class MainWindow(QMainWindow):
         try:
             self.store.load()
         except Exception as exc:
-            result = QMessageBox.question(self, "数据文件读取失败", f"读取 {DATA_FILE} 失败：\n{exc}\n\n是否创建新的空数据？")
+            result = QMessageBox.question(self, "数据文件读取失败", f"读取 {self.store.path} 失败：\n{exc}\n\n是否创建新的空数据？")
             if result != QMessageBox.StandardButton.Yes:
                 raise
             self.store.endpoints = []
