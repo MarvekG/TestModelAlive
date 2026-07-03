@@ -103,7 +103,7 @@ pub fn fetch_models(
             endpoint.endpoint_type, endpoint.base_url
         ),
     );
-    let models = fetch_endpoint_models(&endpoint, request.timeout)?;
+    let models = fetch_endpoint_models(&app, &endpoint, request.timeout)?;
     emit_log(&app, &format!("backend fetched {} models", models.len()));
     Ok(models)
 }
@@ -145,19 +145,67 @@ fn new_id(endpoint_type: &str, endpoints: &[SavedEndpoint]) -> Result<String, St
     Err("could not allocate endpoint id".to_string())
 }
 
-fn fetch_endpoint_models(endpoint: &SavedEndpoint, timeout: u64) -> Result<Vec<String>, String> {
+fn fetch_endpoint_models(
+    app: &tauri::AppHandle,
+    endpoint: &SavedEndpoint,
+    timeout: u64,
+) -> Result<Vec<String>, String> {
+    let base_url = endpoint.base_url.trim_end_matches('/');
     let url = if matches!(endpoint.endpoint_type.as_str(), "codex" | "opencode") {
-        format!("{}/models", endpoint.base_url.trim_end_matches('/'))
-    } else if endpoint.base_url.trim_end_matches('/').ends_with("/v1") {
-        format!("{}/models", endpoint.base_url.trim_end_matches('/'))
+        format!("{base_url}/models")
+    } else if base_url.ends_with("/v1") {
+        format!("{base_url}/models")
     } else {
-        format!("{}/v1/models", endpoint.base_url.trim_end_matches('/'))
+        format!("{base_url}/v1/models")
     };
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(timeout))
         .build()
         .map_err(|err| err.to_string())?;
-    let mut request = client.get(&url).header("Accept", "application/json");
+    match fetch_models_from_url(&client, endpoint, &url) {
+        Ok(models) => Ok(models),
+        Err(first_error) => {
+            if url.ends_with("/v1/models") || url_path_ends_with_v1(base_url) {
+                return Err(first_error);
+            }
+            let retry_url = format!("{base_url}/v1/models");
+            emit_log(
+                app,
+                &format!("model fetch failed, retrying with v1 url: {retry_url}"),
+            );
+            fetch_models_from_url(&client, endpoint, &retry_url).map_err(|retry_error| {
+                format!("{first_error}; retry with {retry_url} failed: {retry_error}")
+            })
+        }
+    }
+}
+
+fn url_path_ends_with_v1(raw_url: &str) -> bool {
+    reqwest::Url::parse(raw_url)
+        .ok()
+        .and_then(|url| {
+            url.path_segments().map(|segments| {
+                segments
+                    .filter(|segment| !segment.is_empty())
+                    .next_back()
+                    .is_some_and(|segment| segment.eq_ignore_ascii_case("v1"))
+            })
+        })
+        .unwrap_or_else(|| {
+            raw_url
+                .trim_end_matches('/')
+                .split('/')
+                .next_back()
+                .is_some_and(|segment| segment.eq_ignore_ascii_case("v1"))
+        })
+}
+
+fn fetch_models_from_url(
+    client: &reqwest::blocking::Client,
+    endpoint: &SavedEndpoint,
+    url: &str,
+) -> Result<Vec<String>, String> {
+    let mut request = client.get(url).header("Accept", "application/json");
     if matches!(endpoint.endpoint_type.as_str(), "codex" | "opencode") {
         request = request.header("Authorization", format!("Bearer {}", endpoint.api_key));
     } else {

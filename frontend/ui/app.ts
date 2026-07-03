@@ -234,7 +234,7 @@ export function initApp() {
     testSelection = new Set(endpoint.models);
     testResults = [];
     testLogChunks = [];
-    elements.append1m.checked = false;
+    elements.append1m.checked = endpoint.type === "claude";
     elements.testPanel.classList.remove("hidden");
     document.body.classList.add("modal-open");
     elements.testType.textContent = endpointTypeLabel(endpoint.type);
