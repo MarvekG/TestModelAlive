@@ -13,7 +13,7 @@ export async function readEndpointForm(elements: UiElements, title: string, show
     await showAlert(title, t("missingEndpointName"));
     return null;
   }
-  if (!/^[A-Za-z]+$/.test(request.name)) {
+  if (!/^[A-Za-z0-9]+$/.test(request.name)) {
     await showAlert(title, t("invalidEndpointName"));
     return null;
   }
