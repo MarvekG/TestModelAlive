@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="176" y1="112" x2="848" y2="912" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8b5cf6"/>
+      <stop offset="0.48" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#34d399"/>
+    </linearGradient>
+    <linearGradient id="face" x1="272" y1="272" x2="752" y2="760" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dff7ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="#123044" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <circle cx="810" cy="210" r="76" fill="#fef08a" opacity="0.92"/>
+  <circle cx="196" cy="792" r="92" fill="#ffffff" opacity="0.16"/>
+  <circle cx="145" cy="256" r="42" fill="#ffffff" opacity="0.20"/>
+  <path d="M237 684c-36 0-65-29-65-65s29-65 65-65h44v130h-44Z" fill="#1f3b57" opacity="0.95"/>
+  <path d="M787 684c36 0 65-29 65-65s-29-65-65-65h-44v130h44Z" fill="#1f3b57" opacity="0.95"/>
+  <g filter="url(#shadow)">
+    <rect x="242" y="318" width="540" height="398" rx="132" fill="#1f3b57"/>
+    <rect x="288" y="360" width="448" height="312" rx="102" fill="url(#face)"/>
+    <path d="M512 318v-86" stroke="#1f3b57" stroke-width="36" stroke-linecap="round"/>
+    <circle cx="512" cy="206" r="48" fill="#fef08a" stroke="#1f3b57" stroke-width="28"/>
+  </g>
+  <circle cx="405" cy="505" r="56" fill="#152638"/>
+  <circle cx="619" cy="505" r="56" fill="#152638"/>
+  <circle cx="386" cy="484" r="16" fill="#ffffff" opacity="0.96"/>
+  <circle cx="600" cy="484" r="16" fill="#ffffff" opacity="0.96"/>
+  <path d="M431 601c50 45 112 45 162 0" fill="none" stroke="#152638" stroke-width="34" stroke-linecap="round"/>
+  <path d="M226 365c-43 35-72 82-83 133" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" opacity="0.42"/>
+  <path d="M822 735c-50 52-116 86-188 98" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" opacity="0.34"/>
+  <path d="M356 759h312c34 0 62 28 62 62v16H294v-16c0-34 28-62 62-62Z" fill="#1f3b57" opacity="0.96"/>
+  <path d="M385 805h254" stroke="#67e8f9" stroke-width="26" stroke-linecap="round" opacity="0.92"/>
+</svg>
