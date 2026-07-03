@@ -510,12 +510,14 @@ tr.selected {
   gap: 10px;
   max-height: calc(100vh - 48px);
   padding: 14px;
-  width: min(760px, 100%);
+  width: min(900px, 100%);
 }
 
 .model-picker-list {
+  align-content: start;
   flex: 1;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-auto-rows: max-content;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   max-height: none;
   min-height: 0;
   overflow-y: auto;
@@ -706,7 +708,7 @@ tr.selected {
 .test-layout {
   display: grid;
   gap: 10px;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: minmax(0, 1fr) 360px;
 }
 
 .test-box {
@@ -745,8 +747,10 @@ tr.selected {
 }
 
 .test-models {
+  align-content: start;
   flex: 1;
-  grid-template-columns: 1fr;
+  grid-auto-rows: max-content;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 6px;
   max-height: none;
   min-height: 0;
@@ -766,6 +770,14 @@ tr.selected {
 
 .results {
   max-height: 330px;
+  max-width: 360px;
+}
+
+.results thead th {
+  background: white;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .test-log-title {
@@ -871,5 +883,16 @@ tr.selected {
 
   .test-controls-bar label:first-child {
     width: auto;
+  }
+
+  .results {
+    max-width: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .test-models,
+  .model-picker-list {
+    grid-template-columns: 1fr;
   }
 }
