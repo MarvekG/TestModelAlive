@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::fmt::time::SystemTime as LogSystemTime;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
@@ -12,7 +13,11 @@ pub(crate) fn init() -> Result<WorkerGuard, Box<dyn Error + Send + Sync>> {
     std::fs::create_dir_all(&log_dir)?;
     cleanup_old_logs(&log_dir, Duration::from_secs(30 * 24 * 60 * 60))?;
 
-    let file_appender = tracing_appender::rolling::daily(log_dir, "TestModelAlive.log");
+    let file_appender = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY)
+        .filename_prefix("TestModelAlive")
+        .filename_suffix("txt")
+        .build(log_dir)?;
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
@@ -48,7 +53,7 @@ fn cleanup_old_logs(log_dir: &std::path::Path, max_age: Duration) -> std::io::Re
         let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
             continue;
         };
-        if !file_name.starts_with("TestModelAlive.log") {
+        if !file_name.starts_with("TestModelAlive.") || !file_name.ends_with(".txt") {
             continue;
         }
 
