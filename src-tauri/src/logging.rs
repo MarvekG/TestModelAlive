@@ -30,11 +30,11 @@ pub(crate) fn init() -> Result<WorkerGuard, Box<dyn Error + Send + Sync>> {
 }
 
 fn log_dir() -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let project_dir = manifest_dir
-        .parent()
-        .ok_or("failed to resolve project root from CARGO_MANIFEST_DIR")?;
-    Ok(project_dir.join("logs"))
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .ok_or("HOME/USERPROFILE is not set")?;
+    Ok(home.join(".TestModelAlive").join("logs"))
 }
 
 fn cleanup_old_logs(log_dir: &std::path::Path, max_age: Duration) -> std::io::Result<()> {

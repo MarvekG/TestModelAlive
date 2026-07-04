@@ -19,7 +19,6 @@ lagacy/settings.json
 lagacy/claude-settings.json
 lagacy/claude-settings.json.*.bak
 *.log
-logs/
 
 node_modules/
 dist/
