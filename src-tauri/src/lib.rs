@@ -1,11 +1,21 @@
 mod cli_config;
 mod endpoints;
+mod logging;
 mod models;
 mod paths;
 mod settings;
 mod test_runner;
 
 pub fn run() {
+    let _log_guard = match logging::init() {
+        Ok(guard) => Some(guard),
+        Err(err) => {
+            eprintln!("failed to initialize logging: {err}");
+            None
+        }
+    };
+    tracing::info!("starting TestModelAlive");
+
     tauri::Builder::default()
         .manage(test_runner::AppState::default())
         .invoke_handler(tauri::generate_handler![
@@ -25,5 +35,8 @@ pub fn run() {
             test_runner::test_cli_with_real_config
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|err| {
+            tracing::error!(error = %err, "error while running tauri application");
+            panic!("error while running tauri application: {err}");
+        });
 }
