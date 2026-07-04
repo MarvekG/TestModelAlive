@@ -187,6 +187,7 @@ pub(crate) fn emit_test_log(
     on_event: &Channel<TestMessage>,
     message: &str,
 ) {
+    tracing::info!(target: "test_runner", "{message}");
     let _ = on_event.send(TestMessage::Log {
         message: message.to_string(),
         stream: false,

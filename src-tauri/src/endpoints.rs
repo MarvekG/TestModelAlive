@@ -242,6 +242,7 @@ fn fetch_models_from_url(
 }
 
 fn emit_log(app: &tauri::AppHandle, message: &str) {
+    tracing::info!(target: "backend", "{message}");
     let _ = app.emit(
         "test-log",
         LogEvent {
