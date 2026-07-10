@@ -29,6 +29,13 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
             <option value="opencode">opencode</option>
           </select>
         </label>
+        <label id="opencode-sdk-label" class="opencode-sdk-field hidden"><span>${t("openCodeSdkPackage")}</span>
+          <select id="opencode-sdk-package">
+            <option value="@ai-sdk/openai">@ai-sdk/openai</option>
+            <option value="@ai-sdk/openai-compatible">@ai-sdk/openai-compatible</option>
+          </select>
+          <small>${t("openCodeSdkHint")}</small>
+        </label>
         <label><span id="base-url-label">${t("url")}</span>
           <input id="base-url" placeholder="https://example.com/v1" />
         </label>

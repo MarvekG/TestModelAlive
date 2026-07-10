@@ -44,6 +44,7 @@ export function initApp() {
   const elements = getElements();
 
   bindControls();
+  updateOpenCodeSdkVisibility();
   void loadEndpoints();
   void loadTestSettings();
 
@@ -61,6 +62,7 @@ export function initApp() {
     });
     bind("save-endpoint", "click", saveEndpoint);
     bind("clear-input", "click", clearInput);
+    bind("endpoint-type", "change", updateOpenCodeSdkVisibility);
     bind("reload-endpoints", "click", loadEndpoints);
     bind("endpoint-filter-text", "input", renderEndpoints);
     bind("endpoint-filter-type", "change", renderEndpoints);
@@ -110,6 +112,10 @@ export function initApp() {
   function closeDocsPanel() {
     elements.docsPanel.classList.add("hidden");
     document.body.classList.remove("modal-open");
+  }
+
+  function updateOpenCodeSdkVisibility() {
+    elements.openCodeSdkLabel.classList.toggle("hidden", elements.endpointType.value !== "opencode");
   }
 
   async function loadEndpoints() {
@@ -218,6 +224,8 @@ export function initApp() {
     const endpoint = selectedEndpoint();
     if (!endpoint) return;
     elements.endpointType.value = endpoint.type;
+    elements.openCodeSdkPackage.value = endpoint.opencode_sdk_package ?? "@ai-sdk/openai";
+    updateOpenCodeSdkVisibility();
     elements.endpointName.value = endpoint.name;
     elements.baseUrl.value = endpoint.base_url;
     elements.apiKey.value = endpoint.api_key;

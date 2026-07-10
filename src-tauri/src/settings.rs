@@ -6,7 +6,10 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use time::OffsetDateTime;
 
-use crate::models::{SavedEndpoint, TestSettings, DEFAULT_PROMPT, DEFAULT_SUCCESS_KEYWORD};
+use crate::models::{
+    default_opencode_sdk_package, SavedEndpoint, TestSettings, DEFAULT_PROMPT,
+    DEFAULT_SUCCESS_KEYWORD,
+};
 use crate::paths::{app_data_dir, store_path, APP_SETTINGS_FILE, CLI_APPLY_HISTORY_FILE};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -124,8 +127,9 @@ pub fn read_app_settings(app: &tauri::AppHandle) -> Result<AppSettings, String> 
         default_app_settings(app)?
     };
     let migrated_apply_history = migrate_apply_history_out_of_settings(app, &mut settings)?;
-    normalize_app_settings(app, &mut settings)?;
-    if !path.exists() || missing_opencode_variants || migrated_apply_history {
+    let normalized_settings = normalize_app_settings(app, &mut settings)?;
+    if !path.exists() || missing_opencode_variants || migrated_apply_history || normalized_settings
+    {
         write_app_settings(&path, &settings)?;
     }
     Ok(settings)
@@ -273,6 +277,65 @@ fn default_opencode_model_variants() -> BTreeMap<String, Value> {
             "reasoningSummary": "auto"
         }
     });
+    let gpt_56_variants = serde_json::json!({
+        "low": {
+            "reasoningEffort": "low",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "medium": {
+            "reasoningEffort": "medium",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "high": {
+            "reasoningEffort": "high",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "xhigh": {
+            "reasoningEffort": "xhigh",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "max": {
+            "reasoningEffort": "max",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "ultra": {
+            "reasoningEffort": "ultra",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        }
+    });
+    let gpt_56_luna_variants = serde_json::json!({
+        "low": {
+            "reasoningEffort": "low",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "medium": {
+            "reasoningEffort": "medium",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "high": {
+            "reasoningEffort": "high",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "xhigh": {
+            "reasoningEffort": "xhigh",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        },
+        "max": {
+            "reasoningEffort": "max",
+            "textVerbosity": "low",
+            "reasoningSummary": "auto"
+        }
+    });
     let generic_reasoning_variants = serde_json::json!({
         "low": { "reasoningEffort": "low" },
         "medium": { "reasoningEffort": "medium" },
@@ -304,6 +367,10 @@ fn default_opencode_model_variants() -> BTreeMap<String, Value> {
         ("gpt-5.4-nano", gpt_variants.clone()),
         ("gpt-5.5", gpt_variants.clone()),
         ("gpt-5.5-pro", gpt_pro_variants),
+        ("gpt-5.6", gpt_56_variants.clone()),
+        ("gpt-5.6-sol", gpt_56_variants.clone()),
+        ("gpt-5.6-terra", gpt_56_variants.clone()),
+        ("gpt-5.6-luna", gpt_56_luna_variants.clone()),
         ("claude-fable-5", generic_reasoning_variants.clone()),
         ("claude-opus-4-8", generic_reasoning_variants.clone()),
         ("claude-opus-4-7", generic_reasoning_variants.clone()),
@@ -364,7 +431,15 @@ fn default_app_settings(app: &tauri::AppHandle) -> Result<AppSettings, String> {
 fn normalize_app_settings(
     app: &tauri::AppHandle,
     settings: &mut AppSettings,
-) -> Result<(), String> {
+) -> Result<bool, String> {
+    let default_variants = default_opencode_model_variants();
+    let mut changed = false;
+    for (model, variants) in default_variants {
+        if !settings.opencode_model_variants.contains_key(&model) {
+            settings.opencode_model_variants.insert(model, variants);
+            changed = true;
+        }
+    }
     settings.endpoints.retain(|endpoint| {
         !endpoint.id.is_empty()
             && is_valid_endpoint_name(&endpoint.name)
@@ -372,6 +447,14 @@ fn normalize_app_settings(
             && !endpoint.endpoint_type.is_empty()
             && !endpoint.base_url.is_empty()
     });
+    for endpoint in &mut settings.endpoints {
+        if endpoint.endpoint_type != "opencode" {
+            endpoint.opencode_sdk_package = default_opencode_sdk_package();
+        } else if !is_valid_opencode_sdk_package(&endpoint.opencode_sdk_package) {
+            endpoint.opencode_sdk_package = default_opencode_sdk_package();
+            changed = true;
+        }
+    }
     normalize_test_settings(&mut settings.test_settings);
     if settings.cli_config.baseline_id.trim().is_empty() {
         settings.cli_config.baseline_id = timestamp_id("baseline");
@@ -385,7 +468,7 @@ fn normalize_app_settings(
     if settings.cli_config.apply_history_limit == 0 {
         settings.cli_config.apply_history_limit = default_apply_history_limit();
     }
-    Ok(())
+    Ok(changed)
 }
 
 pub fn trim_apply_history_store(store: &mut CliConfigApplyHistoryStore) {
@@ -429,6 +512,10 @@ fn is_valid_endpoint_name(name: &str) -> bool {
 
 fn is_valid_endpoint_type(endpoint_type: &str) -> bool {
     matches!(endpoint_type, "codex" | "claude" | "opencode")
+}
+
+fn is_valid_opencode_sdk_package(package: &str) -> bool {
+    matches!(package, "@ai-sdk/openai" | "@ai-sdk/openai-compatible")
 }
 
 #[allow(dead_code)]
