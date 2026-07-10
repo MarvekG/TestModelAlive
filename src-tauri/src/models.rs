@@ -10,6 +10,8 @@ pub struct SavedEndpoint {
     pub name: String,
     #[serde(rename = "type")]
     pub endpoint_type: String,
+    #[serde(default = "default_opencode_sdk_package")]
+    pub opencode_sdk_package: String,
     pub base_url: String,
     pub api_key: String,
     pub models: Vec<String>,
@@ -20,6 +22,7 @@ pub struct AddEndpointRequest {
     pub name: String,
     #[serde(rename = "type")]
     pub endpoint_type: String,
+    pub opencode_sdk_package: Option<String>,
     pub base_url: String,
     pub api_key: String,
     pub models: Vec<String>,
@@ -33,6 +36,10 @@ pub struct FetchModelsRequest {
     pub base_url: String,
     pub api_key: String,
     pub timeout: u64,
+}
+
+pub fn default_opencode_sdk_package() -> String {
+    "@ai-sdk/openai-compatible".to_string()
 }
 
 #[derive(Debug, Deserialize)]

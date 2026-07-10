@@ -5,6 +5,7 @@ export async function readEndpointForm(elements: UiElements, title: string, show
   const request = {
     name: elements.endpointName.value.trim(),
     type: elements.endpointType.value as EndpointType,
+    opencode_sdk_package: elements.openCodeSdkPackage.value,
     base_url: elements.baseUrl.value.trim().replace(/\/+$/, ""),
     api_key: elements.apiKey.value.trim(),
     timeout: Number(elements.fetchTimeout.value || 30),
@@ -30,6 +31,7 @@ export async function readEndpointForm(elements: UiElements, title: string, show
 
 export function clearEndpointForm(elements: UiElements) {
   elements.endpointName.value = "";
+  elements.openCodeSdkPackage.value = "@ai-sdk/openai-compatible";
   elements.baseUrl.value = "";
   elements.apiKey.value = "";
 }

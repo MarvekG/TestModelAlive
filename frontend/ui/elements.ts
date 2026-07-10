@@ -3,6 +3,8 @@ import { byId } from "../utils/dom";
 export function getElements() {
   return {
     endpointType: byId<HTMLSelectElement>("endpoint-type"),
+    openCodeSdkLabel: byId<HTMLLabelElement>("opencode-sdk-label"),
+    openCodeSdkPackage: byId<HTMLSelectElement>("opencode-sdk-package"),
     endpointName: byId<HTMLInputElement>("endpoint-name"),
     baseUrl: byId<HTMLInputElement>("base-url"),
     apiKey: byId<HTMLInputElement>("api-key"),

@@ -3,7 +3,9 @@ use std::time::Duration;
 use tauri::Emitter;
 use time::OffsetDateTime;
 
-use crate::models::{AddEndpointRequest, FetchModelsRequest, LogEvent, SavedEndpoint};
+use crate::models::{
+    default_opencode_sdk_package, AddEndpointRequest, FetchModelsRequest, LogEvent, SavedEndpoint,
+};
 use crate::settings::{read_app_settings, write_app_settings_for_app};
 
 #[tauri::command]
@@ -21,6 +23,8 @@ pub fn add_endpoint(
     validate_endpoint_name(&name)?;
     let endpoint_type = request.endpoint_type.trim().to_string();
     validate_endpoint_type(&endpoint_type)?;
+    let opencode_sdk_package =
+        normalize_opencode_sdk_package(&endpoint_type, request.opencode_sdk_package.as_deref())?;
     let base_url = request.base_url.trim().trim_end_matches('/').to_string();
     let api_key = request.api_key.trim().to_string();
     let models = request
@@ -42,6 +46,7 @@ pub fn add_endpoint(
             let endpoint = &mut settings.endpoints[index];
             endpoint.api_key = api_key;
             endpoint.name = name;
+            endpoint.opencode_sdk_package = opencode_sdk_package;
             endpoint.models = models;
             let endpoint = endpoint.clone();
             write_app_settings_for_app(&app, &settings)?;
@@ -65,6 +70,7 @@ pub fn add_endpoint(
         id: new_id(&endpoint_type, &settings.endpoints)?,
         name,
         endpoint_type,
+        opencode_sdk_package,
         base_url,
         api_key,
         models,
@@ -92,6 +98,7 @@ pub fn fetch_models(
         id: String::new(),
         name: String::new(),
         endpoint_type: request.endpoint_type,
+        opencode_sdk_package: default_opencode_sdk_package(),
         base_url: request.base_url.trim().trim_end_matches('/').to_string(),
         api_key: request.api_key.trim().to_string(),
         models: Vec::new(),
@@ -123,6 +130,23 @@ fn validate_endpoint_type(endpoint_type: &str) -> Result<(), String> {
         return Ok(());
     }
     Err("type must be codex, claude, or opencode".to_string())
+}
+
+fn normalize_opencode_sdk_package(
+    endpoint_type: &str,
+    package: Option<&str>,
+) -> Result<String, String> {
+    if endpoint_type != "opencode" {
+        return Ok(default_opencode_sdk_package());
+    }
+    let package = package
+        .map(str::trim)
+        .filter(|package| !package.is_empty())
+        .unwrap_or("@ai-sdk/openai-compatible");
+    if matches!(package, "@ai-sdk/openai" | "@ai-sdk/openai-compatible") {
+        return Ok(package.to_string());
+    }
+    Err("OpenCode SDK package must be @ai-sdk/openai or @ai-sdk/openai-compatible".to_string())
 }
 
 fn new_id(endpoint_type: &str, endpoints: &[SavedEndpoint]) -> Result<String, String> {

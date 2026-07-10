@@ -1,10 +1,12 @@
 export type EndpointType = "codex" | "claude" | "opencode";
 export type CliConfigTargetKind = "codex" | "claude" | "opencode";
+export type OpenCodeSdkPackage = "@ai-sdk/openai" | "@ai-sdk/openai-compatible";
 
 export interface SavedEndpoint {
   id: string;
   name: string;
   type: EndpointType;
+  opencode_sdk_package: OpenCodeSdkPackage;
   base_url: string;
   api_key: string;
   models: string[];

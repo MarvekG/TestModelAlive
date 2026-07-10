@@ -25,7 +25,7 @@ export function renderEndpointRows(options: {
     row.innerHTML = `
       <td class="check-column"></td>
       <td>${escapeHtml(endpoint.name)}</td>
-      <td>${endpointTypeLabel(endpoint.type)}</td>
+      <td>${endpointTypeLabel(endpoint.type)}${endpoint.type === "opencode" ? `<span class="endpoint-sdk">${escapeHtml(endpoint.opencode_sdk_package)}</span>` : ""}</td>
       <td title="${escapeAttr(endpoint.base_url)}">${escapeHtml(endpoint.base_url)}</td>
       <td>${escapeHtml(maskKey(endpoint.api_key))}</td>
       <td>${endpoint.models.length}</td>

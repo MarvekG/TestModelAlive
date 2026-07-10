@@ -46,7 +46,7 @@ pub(crate) fn build_opencode_preview_with_warnings(
     provider_object.insert(
         endpoint.name.clone(),
         serde_json::json!({
-            "npm": "@ai-sdk/openai-compatible",
+            "npm": endpoint.opencode_sdk_package.as_str(),
             "options": {
                 "baseURL": endpoint.base_url,
                 "apiKey": endpoint.api_key

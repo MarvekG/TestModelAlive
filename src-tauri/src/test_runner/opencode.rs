@@ -25,12 +25,15 @@ pub(crate) fn prepare_opencode(
     let config = serde_json::json!({
         "provider": {
             endpoint.name.clone(): {
-                "npm": "@ai-sdk/openai-compatible",
+                "npm": endpoint.opencode_sdk_package.as_str(),
                 "options": {
                     "baseURL": endpoint.base_url,
                     "apiKey": endpoint.api_key
                 },
-                "models": build_model_entries(&[model.to_string()], model_variants)
+                "models": build_model_entries(
+                    &[model.to_string()],
+                    model_variants,
+                )
             }
         }
     });

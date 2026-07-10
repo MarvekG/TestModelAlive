@@ -90,6 +90,23 @@ label {
   font-weight: 650;
 }
 
+label small {
+  color: #66748a;
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.4;
+  margin-top: 5px;
+}
+
+.endpoint-sdk {
+  color: #66748a;
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
