@@ -88,7 +88,7 @@ export function showConfirm(
   });
 }
 
-export function confirmDuplicateEndpointAction(url: string, t: (key: string) => string, isModalOpen: () => boolean): Promise<"add" | "overwrite" | "cancel"> {
+export function confirmDuplicateEndpointAction(url: string, t: (key: string) => string, isModalOpen: () => boolean): Promise<"overwrite" | "cancel"> {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "choice-modal";
@@ -98,14 +98,13 @@ export function confirmDuplicateEndpointAction(url: string, t: (key: string) => 
         <p>${escapeHtml(t("duplicateEndpointMessage"))}</p>
         <div class="choice-url" title="${escapeAttr(url)}">${escapeHtml(url)}</div>
         <div class="actions choice-actions">
-          <button data-action="add">${escapeHtml(t("addNew"))}</button>
           <button data-action="overwrite" class="danger">${escapeHtml(t("overwrite"))}</button>
           <button data-action="cancel" class="secondary">${escapeHtml(t("cancel"))}</button>
         </div>
       </div>
     `;
 
-    const finish = (action: "add" | "overwrite" | "cancel") => {
+    const finish = (action: "overwrite" | "cancel") => {
       document.removeEventListener("keydown", onKeyDown);
       overlay.remove();
       document.body.classList.toggle("modal-open", isModalOpen());
@@ -119,12 +118,12 @@ export function confirmDuplicateEndpointAction(url: string, t: (key: string) => 
       if (event.target === overlay) finish("cancel");
     });
     overlay.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
-      button.addEventListener("click", () => finish(button.dataset.action as "add" | "overwrite" | "cancel"));
+      button.addEventListener("click", () => finish(button.dataset.action as "overwrite" | "cancel"));
     });
 
     document.body.classList.add("modal-open");
     document.addEventListener("keydown", onKeyDown);
     document.body.append(overlay);
-    overlay.querySelector<HTMLButtonElement>('button[data-action="add"]')?.focus();
+    overlay.querySelector<HTMLButtonElement>('button[data-action="cancel"]')?.focus();
   });
 }

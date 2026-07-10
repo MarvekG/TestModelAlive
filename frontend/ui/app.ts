@@ -224,7 +224,7 @@ export function initApp() {
     const endpoint = selectedEndpoint();
     if (!endpoint) return;
     elements.endpointType.value = endpoint.type;
-    elements.openCodeSdkPackage.value = endpoint.opencode_sdk_package ?? "@ai-sdk/openai";
+    elements.openCodeSdkPackage.value = endpoint.opencode_sdk_package ?? "@ai-sdk/openai-compatible";
     updateOpenCodeSdkVisibility();
     elements.endpointName.value = endpoint.name;
     elements.baseUrl.value = endpoint.base_url;

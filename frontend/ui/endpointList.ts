@@ -8,10 +8,6 @@ export function endpointTypeLabel(type: EndpointType) {
   return "OpenCode";
 }
 
-function endpointSdkTitle(endpoint: SavedEndpoint) {
-  return endpoint.type === "opencode" ? `OpenCode SDK: ${endpoint.opencode_sdk_package}` : endpointTypeLabel(endpoint.type);
-}
-
 export function renderEndpointRows(options: {
   root: HTMLTableSectionElement;
   endpoints: SavedEndpoint[];
@@ -29,7 +25,7 @@ export function renderEndpointRows(options: {
     row.innerHTML = `
       <td class="check-column"></td>
       <td>${escapeHtml(endpoint.name)}</td>
-      <td title="${escapeAttr(endpointSdkTitle(endpoint))}">${endpointTypeLabel(endpoint.type)}</td>
+      <td>${endpointTypeLabel(endpoint.type)}${endpoint.type === "opencode" ? `<span class="endpoint-sdk">${escapeHtml(endpoint.opencode_sdk_package)}</span>` : ""}</td>
       <td title="${escapeAttr(endpoint.base_url)}">${escapeHtml(endpoint.base_url)}</td>
       <td>${escapeHtml(maskKey(endpoint.api_key))}</td>
       <td>${endpoint.models.length}</td>

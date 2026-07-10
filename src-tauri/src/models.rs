@@ -39,7 +39,7 @@ pub struct FetchModelsRequest {
 }
 
 pub fn default_opencode_sdk_package() -> String {
-    "@ai-sdk/openai".to_string()
+    "@ai-sdk/openai-compatible".to_string()
 }
 
 #[derive(Debug, Deserialize)]

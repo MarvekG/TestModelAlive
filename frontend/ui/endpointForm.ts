@@ -31,7 +31,7 @@ export async function readEndpointForm(elements: UiElements, title: string, show
 
 export function clearEndpointForm(elements: UiElements) {
   elements.endpointName.value = "";
-  elements.openCodeSdkPackage.value = "@ai-sdk/openai";
+  elements.openCodeSdkPackage.value = "@ai-sdk/openai-compatible";
   elements.baseUrl.value = "";
   elements.apiKey.value = "";
 }

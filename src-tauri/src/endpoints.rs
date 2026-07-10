@@ -142,7 +142,7 @@ fn normalize_opencode_sdk_package(
     let package = package
         .map(str::trim)
         .filter(|package| !package.is_empty())
-        .unwrap_or("@ai-sdk/openai");
+        .unwrap_or("@ai-sdk/openai-compatible");
     if matches!(package, "@ai-sdk/openai" | "@ai-sdk/openai-compatible") {
         return Ok(package.to_string());
     }
