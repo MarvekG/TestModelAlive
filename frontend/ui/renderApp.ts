@@ -155,7 +155,7 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
         </div>
         <div class="test-controls-bar">
           <label><span id="test-timeout-label">${t("timeout")}</span>
-            <input id="test-timeout" type="number" min="1" max="3600" value="120" />
+            <input id="test-timeout" type="number" min="1" max="3600" value="240" />
           </label>
           <label id="append-1m-label" class="inline-check">
             <input id="append-1m" type="checkbox" />

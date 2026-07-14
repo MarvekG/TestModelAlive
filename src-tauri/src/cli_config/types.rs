@@ -46,6 +46,13 @@ pub struct EditedCliConfig {
     pub selected_models: Vec<String>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct OpenCodeTimeoutOptions {
+    pub timeout_ms: Option<u64>,
+    pub header_timeout_ms: Option<u64>,
+    pub chunk_timeout_ms: Option<u64>,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct EditedCliConfigFile {
     pub file_id: String,

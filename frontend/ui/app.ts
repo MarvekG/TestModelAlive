@@ -13,7 +13,7 @@ import { clearEndpointForm, readEndpointForm } from "./endpointForm";
 import { endpointTypeLabel, renderEndpointRows, setEndpointChecks as updateEndpointChecks } from "./endpointList";
 import { invertSelection, renderCheckList, setSelection } from "./modelList";
 import { appendTimestampedLog, renderTestLogs as renderLogPanel } from "./logPanel";
-import { chooseFetchedTestModels, chooseSingleModel, renderResults as renderResultRows } from "./testDialog";
+import { chooseFetchedTestModels, chooseOpenCodeApplyOptions, renderResults as renderResultRows } from "./testDialog";
 import { closeTestSettingsDialog, openTestSettingsDialog, resetTestSettingsDialog } from "./testSettingsDialog";
 import { cliTargetLabel, showApplyCliConfigResultDialog, showCliConfigPreviewDialog } from "./cliConfigDialog";
 import { restoreResultDetail, showRestoreConfigDialog } from "./restoreConfigDialog";
@@ -277,8 +277,11 @@ export function initApp() {
     setApplyBusy(true);
     try {
       models = await modelsForCliConfig(target, models);
-      const defaultModel = await chooseOpenCodeDefaultModel(target, models);
-      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel);
+      const options = await chooseOpenCodeOptions(target, models);
+      if (target === "opencode" && !options) return;
+      const defaultModel = options?.defaultModel ?? null;
+      const timeouts = options?.timeouts ?? null;
+      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel, timeouts);
       if (!(await confirmCliConfigWarnings(preview))) return;
       const editedConfig = await showCliConfigPreviewDialog({ preview, models, t, isModalOpen: isTestPanelOpen, showAlert });
       if (!editedConfig) return;
@@ -321,7 +324,7 @@ export function initApp() {
     const onEvent = createTestEventChannel({ logToPanel: true, onFinished: () => setApplyBusy(false) });
     try {
       await testCliWithRealConfigApi(
-        { target, endpoint_name: testEndpoint.name, models, timeout: Number(elements.testTimeout.value || 120), prompt: testPrompt, success_keyword: successKeyword },
+        { target, endpoint_name: testEndpoint.name, models, timeout: Number(elements.testTimeout.value || 240), prompt: testPrompt, success_keyword: successKeyword },
         onEvent,
       );
     } catch (error) {
@@ -331,10 +334,15 @@ export function initApp() {
     }
   }
 
-  async function chooseOpenCodeDefaultModel(target: CliConfigTargetKind, models: string[]) {
+  async function chooseOpenCodeOptions(target: CliConfigTargetKind, models: string[]) {
     if (target !== "opencode") return null;
-    if (!(await showConfirm(cliTargetLabel(target), t("setOpenCodeDefaultModel")))) return null;
-    return chooseSingleModel({ title: t("chooseDefaultModel"), models, t, isModalOpen: isTestPanelOpen });
+    return chooseOpenCodeApplyOptions({
+      models,
+      defaultTimeoutSeconds: Number(elements.testTimeout.value || 240),
+      t,
+      isModalOpen: isTestPanelOpen,
+      showAlert,
+    });
   }
 
   async function runRealConfigTests() {
@@ -418,14 +426,14 @@ export function initApp() {
     renderResults();
     setTestRunning(true);
     elements.testStatus.textContent = `${t("running")}: ${models.length}`;
-    log(`starting CLI test request: type=${testEndpoint.type} url=${testEndpoint.base_url} models=${models.length} timeout=${Number(elements.testTimeout.value || 120)}s`);
+    log(`starting CLI test request: type=${testEndpoint.type} url=${testEndpoint.base_url} models=${models.length} timeout=${Number(elements.testTimeout.value || 240)}s`);
     const onEvent = createTestEventChannel({ logToPanel: false });
     try {
       await testModelsApi(
         {
           endpoint: testEndpoint,
           models,
-          timeout: Number(elements.testTimeout.value || 120),
+          timeout: Number(elements.testTimeout.value || 240),
           append_1m: elements.append1m.checked,
           prompt: testPrompt,
           success_keyword: successKeyword,

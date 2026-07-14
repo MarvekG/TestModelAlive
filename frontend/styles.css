@@ -78,6 +78,12 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgb(36 84 214 / 12%);
 }
 
+input:disabled,
+select:disabled {
+  background: #eef2f7;
+  color: #94a3b8;
+}
+
 textarea {
   min-height: 120px;
   resize: vertical;
@@ -551,6 +557,36 @@ tr.selected {
   margin: 0;
 }
 
+.opencode-options-dialog {
+  max-width: 680px;
+  width: min(680px, 100%);
+}
+
+.opencode-option-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.opencode-option-card small {
+  color: #66748a;
+  line-height: 1.4;
+}
+
+.option-toggle {
+  color: #172033;
+  font-size: 0.95rem;
+}
+
+.timeout-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .choice-url {
   background: white;
   border: 1px solid #dfe6f1;
@@ -910,6 +946,10 @@ tr.selected {
 @media (max-width: 640px) {
   .test-models,
   .model-picker-list {
+    grid-template-columns: 1fr;
+  }
+
+  .timeout-grid {
     grid-template-columns: 1fr;
   }
 }

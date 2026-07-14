@@ -7,7 +7,7 @@ use crate::cli_config::preview::{
 use crate::cli_config::restore::restore_original_cli_config_impl;
 use crate::cli_config::types::{
     ApplyCliConfigResult, CliConfigPreview, CliConfigTargetKind, CliConfigWriteResult,
-    EditedCliConfig, RestoreCliConfigResult, RestoreSelection,
+    EditedCliConfig, OpenCodeTimeoutOptions, RestoreCliConfigResult, RestoreSelection,
 };
 use crate::models::SavedEndpoint;
 use crate::paths::{cli_target_files, store_path, APP_SETTINGS_FILE};
@@ -26,8 +26,16 @@ pub fn build_cli_config_preview(
     target: CliConfigTargetKind,
     selected_models: Vec<String>,
     default_model: Option<String>,
+    timeouts: Option<OpenCodeTimeoutOptions>,
 ) -> Result<CliConfigPreview, String> {
-    build_preview(&app, endpoint, target, selected_models, default_model)
+    build_preview(
+        &app,
+        endpoint,
+        target,
+        selected_models,
+        default_model,
+        timeouts,
+    )
 }
 
 #[tauri::command]

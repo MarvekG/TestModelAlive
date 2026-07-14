@@ -112,7 +112,7 @@ opencode 端点：超时时间 / 开始测试 / 测试当前配置 / 停止 / �
 
 ```rust
 #[tauri::command]
-fn build_cli_config_preview(app: tauri::AppHandle, endpoint: SavedEndpoint, target: CliConfigTargetKind, selected_models: Vec<String>, default_model: Option<String>) -> Result<CliConfigPreview, String>
+fn build_cli_config_preview(app: tauri::AppHandle, endpoint: SavedEndpoint, target: CliConfigTargetKind, selected_models: Vec<String>, default_model: Option<String>, timeouts: Option<OpenCodeTimeoutOptions>) -> Result<CliConfigPreview, String>
 
 #[tauri::command]
 fn build_remove_opencode_config_preview(app: tauri::AppHandle, endpoint: SavedEndpoint) -> Result<CliConfigPreview, String>
@@ -230,6 +230,10 @@ struct RealCliTestRequest {
 
 - `CliConfigTargetKind` 前后端传输值为 `codex`、`claude`、`opencode`。
 - `build_cli_config_preview` 的 `default_model` 仅用于 OpenCode；传入后会写入顶层 `model` 和 `small_model`，格式为 `<provider>/<model>`。
+- `build_cli_config_preview` 的 `timeouts` 仅用于 OpenCode；可选写入：
+  - `provider.<endpoint.name>.options.timeout`：整请求超时（毫秒，>0；schema 也允许 `false` 禁用，本应用 UI 只写正整数）
+  - `provider.<endpoint.name>.options.headerTimeout`：等待响应头超时（毫秒，>0；schema 也允许 `false`）
+  - `provider.<endpoint.name>.options.chunkTimeout`：流式 SSE 分片间隔超时（毫秒，>0）
 - `build_remove_opencode_config_preview` 只生成移除匹配 OpenCode provider 后的预览，不直接写入；确认后仍复用 `apply_cli_config` 写入。
 - `load_cli_config_baseline_items` 返回给还原弹窗展示的精简基线项，不包含 `backup_path`。
 - `test_cli_with_real_config` 通过 `Channel<TestMessage>` 流式返回日志和结果，不同步返回 `Vec<TestResult>`。
@@ -255,7 +259,7 @@ struct RealCliTestRequest {
 
 1. 前端点击“应用到 X”。
 2. 前端收集当前测试弹窗选中的模型。Codex/Claude 必须且只能选择 1 个模型；OpenCode 可以选择多个模型。
-3. 前端调用 `build_cli_config_preview` 生成默认配置内容；OpenCode 可先询问是否设置默认模型，并把选中的默认模型作为 `default_model` 传给后端。
+3. 前端调用 `build_cli_config_preview` 生成默认配置内容；OpenCode 会先打开一个应用选项弹框，集中设置默认模型（`default_model`）和 provider 超时（`timeouts.timeout_ms` / `header_timeout_ms` / `chunk_timeout_ms`，毫秒）。
 4. 前端弹出编辑确认框，用户检查并可修改每个目标文件内容。
 5. 用户确认后，前端调用 `apply_cli_config`，传入 `edited_config`，其中包含编辑后的文件内容和本次选中的模型列表。
 6. 后端对 `edited_config` 做基础校验，先创建原始基线和操作备份，再把用户确认后的内容写入真实 CLI 配置。
@@ -826,7 +830,10 @@ OpenCode 的目标是“新增入口”，因此不能重写整个配置。推�
       "npm": "@ai-sdk/openai-compatible",
       "options": {
         "baseURL": "https://example.com/v1",
-        "apiKey": "sk-xxx"
+        "apiKey": "sk-xxx",
+        "timeout": 300000,
+        "headerTimeout": 60000,
+        "chunkTimeout": 120000
       },
       "models": {
         "model-a": {
@@ -846,12 +853,13 @@ OpenCode 的目标是“新增入口”，因此不能重写整个配置。推�
 - 上述结构是默认预览内容，最终写入内容以用户在编辑确认框中确认的 `edited_config` 为准。
 - OpenCode 应用配置时允许选择多个模型。默认预览会把用户选择的每个模型写入 `provider.<endpoint.name>.models`。
 - OpenCode 可选择默认模型；若选择，预览会写入顶层 `model` 和 `small_model`，值为 `<endpoint.name>/<model>`。
+- OpenCode 可选择超时；若选择，预览会写入 `options.timeout`、`options.headerTimeout`、`options.chunkTimeout`（毫秒）。schema 中 `timeout`/`headerTimeout` 还允许 `false` 禁用；本应用 UI 只写入正整数毫秒。
 - 当前实现内置轻量 JSONC 处理：移除注释和尾逗号后用 `serde_json` 解析，最终写回 pretty JSON。
 - 文件存在但解析后不是对象，或无法解析为 JSON/JSONC 时，预览失败且不写入。
 
 字段处理：
 
-- 修改：`provider` 对象，新增 `<endpoint.name>` entry，并写入用户选择的多个模型；可选修改顶层 `model` 和 `small_model`。
+- 修改：`provider` 对象，新增 `<endpoint.name>` entry，并写入用户选择的多个模型；可选写入 `options.timeout` / `headerTimeout` / `chunkTimeout`；可选修改顶层 `model` 和 `small_model`。
 - 保留：除新增 entry 外的所有字段，包括已有 provider、model、theme、mcp、formatter 等。
 - 删除：应用 OpenCode 配置时不主动删除任何字段，不覆盖已有同名 entry。“从 OpenCode 移除”会按当前端点的 URL 和 API Key 匹配 provider 并删除，若顶层 `model` 或 `small_model` 指向该 provider，也会一并移除。
 
@@ -929,7 +937,7 @@ OpenCode 真实配置测试要求请求携带 `endpoint_name`，通常为当前�
 - 通过 `Channel<TestMessage>` 复用现有日志和结果事件。
 - 每个模型生成一条 `TestResult` 结果事件。
 - 成功判断复用现有 `success_keyword` 匹配逻辑。
-- 超时使用测试弹窗的超时时间输入值，默认 120 秒。
+- 超时使用测试弹窗的超时时间输入值，默认 240 秒。
 - 日志输出 `starting real CLI config test: target=<target>`，避免和临时配置测试混淆。
 
 ## 校验规则

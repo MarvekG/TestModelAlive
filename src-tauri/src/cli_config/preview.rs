@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::cli_config::types::{
     CliConfigPreview, CliConfigPreviewFile, CliConfigTargetKind, EditedCliConfig,
+    OpenCodeTimeoutOptions,
 };
 use crate::models::SavedEndpoint;
 use crate::paths::cli_target_files;
@@ -17,6 +18,7 @@ pub(crate) fn build_preview(
     target: CliConfigTargetKind,
     selected_models: Vec<String>,
     default_model: Option<String>,
+    timeouts: Option<OpenCodeTimeoutOptions>,
 ) -> Result<CliConfigPreview, String> {
     validate_cli_target(&endpoint, &target, &selected_models)?;
     let files = cli_target_files(&target)?;
@@ -35,6 +37,7 @@ pub(crate) fn build_preview(
                 &selected_models,
                 &files,
                 default_model,
+                timeouts,
                 &model_variants,
             )?;
             warnings = preview_warnings;
