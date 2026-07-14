@@ -1,4 +1,4 @@
-import type { TestResult } from "../types";
+import type { OpenCodeTimeoutOptions, TestResult } from "../types";
 import { escapeHtml } from "../utils/dom";
 import { renderCheckList, setSelection, invertSelection } from "./modelList";
 
@@ -88,52 +88,118 @@ export function chooseFetchedTestModels(options: {
   });
 }
 
-export function chooseSingleModel(options: {
-  title: string;
+export function chooseOpenCodeApplyOptions(options: {
   models: string[];
+  defaultTimeoutSeconds: number;
   t: (key: string) => string;
   isModalOpen: () => boolean;
-}): Promise<string | null> {
-  const { title, models, t, isModalOpen } = options;
+  showAlert: (title: string, message: string) => Promise<void>;
+}): Promise<{ defaultModel: string | null; timeouts: OpenCodeTimeoutOptions | null } | null> {
+  const { models, defaultTimeoutSeconds, t, isModalOpen, showAlert } = options;
+  const defaults = {
+    timeoutSeconds: defaultTimeoutSeconds,
+    headerTimeoutSeconds: Math.min(defaultTimeoutSeconds, 60),
+    chunkTimeoutSeconds: 120,
+  };
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "choice-modal";
     overlay.innerHTML = `
-      <div class="choice-dialog" role="dialog" aria-modal="true">
-        <h2>${escapeHtml(title)}</h2>
-        <select class="model-select">
-          ${models.map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join("")}
-        </select>
+      <div class="choice-dialog opencode-options-dialog" role="dialog" aria-modal="true">
+        <h2>${escapeHtml(t("openCodeApplyOptionsTitle"))}</h2>
+        <section class="opencode-option-card">
+          <label class="inline-check option-toggle">
+            <input data-field="setDefaultModel" type="checkbox" />
+            ${escapeHtml(t("openCodeDefaultModelOption"))}
+          </label>
+          <small>${escapeHtml(t("openCodeDefaultModelHint"))}</small>
+          <select class="model-select" disabled>
+            ${models.map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join("")}
+          </select>
+        </section>
+        <section class="opencode-option-card">
+          <label class="inline-check option-toggle">
+            <input data-field="setTimeouts" type="checkbox" />
+            ${escapeHtml(t("openCodeTimeoutOption"))}
+          </label>
+          <small>${escapeHtml(t("openCodeTimeoutHint"))}</small>
+          <div class="timeout-grid">
+            <label>
+              <span>${escapeHtml(t("openCodeTimeout"))} (s)</span>
+              <input data-field="timeout" class="timeout-input" type="number" min="1" max="86400" value="${defaults.timeoutSeconds}" disabled />
+            </label>
+            <label>
+              <span>${escapeHtml(t("openCodeHeaderTimeout"))} (s)</span>
+              <input data-field="headerTimeout" class="timeout-input" type="number" min="1" max="86400" value="${defaults.headerTimeoutSeconds}" disabled />
+            </label>
+            <label>
+              <span>${escapeHtml(t("openCodeChunkTimeout"))} (s)</span>
+              <input data-field="chunkTimeout" class="timeout-input" type="number" min="1" max="86400" value="${defaults.chunkTimeoutSeconds}" disabled />
+            </label>
+          </div>
+        </section>
         <div class="actions choice-actions">
           <button data-action="confirm">${escapeHtml(t("confirm"))}</button>
           <button data-action="cancel" class="secondary">${escapeHtml(t("cancel"))}</button>
         </div>
       </div>
     `;
-    const finish = (model: string | null) => {
+    const setDefaultModel = overlay.querySelector<HTMLInputElement>('input[data-field="setDefaultModel"]');
+    const setTimeouts = overlay.querySelector<HTMLInputElement>('input[data-field="setTimeouts"]');
+    const modelSelect = overlay.querySelector<HTMLSelectElement>("select.model-select");
+    const timeoutInputs = [...overlay.querySelectorAll<HTMLInputElement>("input.timeout-input")];
+    const finish = (value: { defaultModel: string | null; timeouts: OpenCodeTimeoutOptions | null } | null) => {
       document.removeEventListener("keydown", onKeyDown);
       overlay.remove();
       document.body.classList.toggle("modal-open", isModalOpen());
-      resolve(model);
+      resolve(value);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") finish(null);
     };
+    const readSeconds = (field: string) => {
+      const value = Number(overlay.querySelector<HTMLInputElement>(`input[data-field="${field}"]`)?.value || 0);
+      if (!Number.isFinite(value) || !Number.isInteger(value) || value < 1 || value > 86400) return null;
+      return value;
+    };
+    const updateEnabled = () => {
+      if (modelSelect) modelSelect.disabled = !setDefaultModel?.checked;
+      timeoutInputs.forEach((input) => (input.disabled = !setTimeouts?.checked));
+    };
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) finish(null);
     });
+    setDefaultModel?.addEventListener("change", updateEnabled);
+    setTimeouts?.addEventListener("change", updateEnabled);
     overlay.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
-      button.addEventListener("click", () => {
-        if (button.dataset.action === "confirm") {
-          finish(overlay.querySelector<HTMLSelectElement>("select")?.value ?? null);
-        } else {
+      button.addEventListener("click", async () => {
+        if (button.dataset.action !== "confirm") {
           finish(null);
+          return;
         }
+        const defaultModel = setDefaultModel?.checked ? modelSelect?.value ?? null : null;
+        let timeouts: OpenCodeTimeoutOptions | null = null;
+        if (setTimeouts?.checked) {
+          const timeoutSeconds = readSeconds("timeout");
+          const headerTimeoutSeconds = readSeconds("headerTimeout");
+          const chunkTimeoutSeconds = readSeconds("chunkTimeout");
+          if (timeoutSeconds == null || headerTimeoutSeconds == null || chunkTimeoutSeconds == null) {
+            await showAlert(t("openCodeApplyOptionsTitle"), t("invalidOpenCodeTimeout"));
+            return;
+          }
+          timeouts = {
+            timeout_ms: timeoutSeconds * 1000,
+            header_timeout_ms: headerTimeoutSeconds * 1000,
+            chunk_timeout_ms: chunkTimeoutSeconds * 1000,
+          };
+        }
+        finish({ defaultModel, timeouts });
       });
     });
     document.body.classList.add("modal-open");
     document.addEventListener("keydown", onKeyDown);
     document.body.append(overlay);
-    overlay.querySelector<HTMLSelectElement>("select")?.focus();
+    updateEnabled();
+    setDefaultModel?.focus();
   });
 }

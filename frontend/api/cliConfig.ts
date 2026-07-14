@@ -1,8 +1,30 @@
 import { invokeCommand } from "./tauri";
-import type { ApplyCliConfigResult, CliConfigBaselineItem, CliConfigPreview, CliConfigTargetKind, EditedCliConfig, RestoreCliConfigResult, RestoreSelection, SavedEndpoint } from "../types";
+import type {
+  ApplyCliConfigResult,
+  CliConfigBaselineItem,
+  CliConfigPreview,
+  CliConfigTargetKind,
+  EditedCliConfig,
+  OpenCodeTimeoutOptions,
+  RestoreCliConfigResult,
+  RestoreSelection,
+  SavedEndpoint,
+} from "../types";
 
-export function buildCliConfigPreviewApi(endpoint: SavedEndpoint, target: CliConfigTargetKind, selectedModels: string[], defaultModel: string | null = null) {
-  return invokeCommand<CliConfigPreview>("build_cli_config_preview", { endpoint, target, selectedModels, defaultModel });
+export function buildCliConfigPreviewApi(
+  endpoint: SavedEndpoint,
+  target: CliConfigTargetKind,
+  selectedModels: string[],
+  defaultModel: string | null = null,
+  timeouts: OpenCodeTimeoutOptions | null = null,
+) {
+  return invokeCommand<CliConfigPreview>("build_cli_config_preview", {
+    endpoint,
+    target,
+    selectedModels,
+    defaultModel,
+    timeouts,
+  });
 }
 
 export function buildRemoveOpenCodeConfigPreviewApi(endpoint: SavedEndpoint) {

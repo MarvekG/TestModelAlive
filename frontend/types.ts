@@ -52,6 +52,12 @@ export interface EditedCliConfig {
   files: { file_id: string; path: string; content: string }[];
 }
 
+export interface OpenCodeTimeoutOptions {
+  timeout_ms?: number | null;
+  header_timeout_ms?: number | null;
+  chunk_timeout_ms?: number | null;
+}
+
 export interface ApplyCliConfigResult {
   baseline_id: string;
   baseline_path: string;

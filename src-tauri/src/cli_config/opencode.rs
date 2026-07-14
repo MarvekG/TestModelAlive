@@ -3,7 +3,9 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::cli_config::types::{CliConfigPreviewFile, CliConfigPreviewWarning};
+use crate::cli_config::types::{
+    CliConfigPreviewFile, CliConfigPreviewWarning, OpenCodeTimeoutOptions,
+};
 use crate::models::SavedEndpoint;
 
 use super::preview::{parse_jsonc_object, preview_file};
@@ -13,6 +15,7 @@ pub(crate) fn build_opencode_preview_with_warnings(
     models: &[String],
     files: &[(String, PathBuf, String)],
     default_model: Option<String>,
+    timeouts: Option<OpenCodeTimeoutOptions>,
     model_variants: &BTreeMap<String, Value>,
 ) -> Result<(Vec<CliConfigPreviewFile>, Vec<CliConfigPreviewWarning>), String> {
     let (file_id, path, language) = files
@@ -43,14 +46,22 @@ pub(crate) fn build_opencode_preview_with_warnings(
             provider: endpoint.name.clone(),
         });
     }
+    let mut options = serde_json::Map::new();
+    options.insert(
+        "baseURL".to_string(),
+        Value::String(endpoint.base_url.clone()),
+    );
+    options.insert("apiKey".to_string(), Value::String(endpoint.api_key.clone()));
+    if let Some(timeouts) = timeouts {
+        insert_timeout_option(&mut options, "timeout", timeouts.timeout_ms)?;
+        insert_timeout_option(&mut options, "headerTimeout", timeouts.header_timeout_ms)?;
+        insert_timeout_option(&mut options, "chunkTimeout", timeouts.chunk_timeout_ms)?;
+    }
     provider_object.insert(
         endpoint.name.clone(),
         serde_json::json!({
             "npm": endpoint.opencode_sdk_package.as_str(),
-            "options": {
-                "baseURL": endpoint.base_url,
-                "apiKey": endpoint.api_key
-            },
+            "options": options,
             "models": build_model_entries(models, model_variants)
         }),
     );
@@ -189,6 +200,23 @@ pub(crate) fn build_remove_opencode_preview(
         return Err("No matching OpenCode provider was found".to_string());
     }
     Ok(vec![preview_file(file_id, path, language, content)])
+}
+
+fn insert_timeout_option(
+    options: &mut serde_json::Map<String, Value>,
+    key: &str,
+    value: Option<u64>,
+) -> Result<(), String> {
+    let Some(timeout) = value else {
+        return Ok(());
+    };
+    if timeout == 0 {
+        return Err(format!(
+            "OpenCode {key} must be greater than 0 milliseconds"
+        ));
+    }
+    options.insert(key.to_string(), Value::from(timeout));
+    Ok(())
 }
 
 fn provider_matches_endpoint(provider: &Value, endpoint: &SavedEndpoint) -> bool {
