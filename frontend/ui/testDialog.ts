@@ -98,7 +98,7 @@ export function chooseOpenCodeApplyOptions(options: {
   const { models, defaultTimeoutSeconds, t, isModalOpen, showAlert } = options;
   const defaults = {
     timeoutSeconds: defaultTimeoutSeconds,
-    headerTimeoutSeconds: Math.min(defaultTimeoutSeconds, 60),
+    headerTimeoutSeconds: 120,
     chunkTimeoutSeconds: 120,
   };
   return new Promise((resolve) => {
@@ -119,7 +119,7 @@ export function chooseOpenCodeApplyOptions(options: {
         </section>
         <section class="opencode-option-card">
           <label class="inline-check option-toggle">
-            <input data-field="setTimeouts" type="checkbox" />
+            <input data-field="setTimeouts" type="checkbox" checked />
             ${escapeHtml(t("openCodeTimeoutOption"))}
           </label>
           <small>${escapeHtml(t("openCodeTimeoutHint"))}</small>

@@ -33,6 +33,7 @@ pub(crate) fn prepare_opencode(
                 "models": build_model_entries(
                     &[model.to_string()],
                     model_variants,
+                    &endpoint.opencode_sdk_package,
                 )
             }
         }

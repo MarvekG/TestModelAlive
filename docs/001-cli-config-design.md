@@ -832,7 +832,7 @@ OpenCode 的目标是“新增入口”，因此不能重写整个配置。推�
         "baseURL": "https://example.com/v1",
         "apiKey": "sk-xxx",
         "timeout": 300000,
-        "headerTimeout": 60000,
+        "headerTimeout": 120000,
         "chunkTimeout": 120000
       },
       "models": {
