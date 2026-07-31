@@ -51,7 +51,10 @@ pub(crate) fn build_opencode_preview_with_warnings(
         "baseURL".to_string(),
         Value::String(endpoint.base_url.clone()),
     );
-    options.insert("apiKey".to_string(), Value::String(endpoint.api_key.clone()));
+    options.insert(
+        "apiKey".to_string(),
+        Value::String(endpoint.api_key.clone()),
+    );
     if let Some(timeouts) = timeouts {
         insert_timeout_option(&mut options, "timeout", timeouts.timeout_ms)?;
         insert_timeout_option(&mut options, "headerTimeout", timeouts.header_timeout_ms)?;
@@ -62,7 +65,11 @@ pub(crate) fn build_opencode_preview_with_warnings(
         serde_json::json!({
             "npm": endpoint.opencode_sdk_package.as_str(),
             "options": options,
-            "models": build_model_entries(models, model_variants)
+            "models": build_model_entries(
+                models,
+                model_variants,
+                &endpoint.opencode_sdk_package,
+            )
         }),
     );
     if let Some(model) = default_model {
@@ -90,22 +97,68 @@ pub(crate) fn build_opencode_preview_with_warnings(
 pub(crate) fn build_model_entries(
     models: &[String],
     model_variants: &BTreeMap<String, Value>,
+    sdk_package: &str,
 ) -> serde_json::Map<String, Value> {
-    models
-        .iter()
-        .map(|model| {
-            let mut entry = serde_json::Map::new();
-            entry.insert("name".to_string(), Value::String(model.clone()));
-            if let Some(variants) = model_variants
-                .get(model)
-                .and_then(Value::as_object)
-                .filter(|variants| !variants.is_empty())
-            {
-                entry.insert("variants".to_string(), Value::Object(variants.clone()));
-            }
-            (model.clone(), Value::Object(entry))
-        })
-        .collect()
+    let mut entries = serde_json::Map::new();
+    for model in models {
+        let variants = model_variants
+            .get(model)
+            .and_then(Value::as_object)
+            .filter(|variants| !variants.is_empty())
+            .cloned();
+        let mut entry = serde_json::Map::new();
+        entry.insert("name".to_string(), Value::String(model.clone()));
+        if let Some(variants) = variants {
+            entry.insert("variants".to_string(), Value::Object(variants));
+        }
+
+        let fast_entry = if sdk_package == "@ai-sdk/openai" {
+            let fast_model = format!("{model}-fast");
+            let mut fast_entry = entry.clone();
+            fast_entry.insert("id".to_string(), Value::String(model.clone()));
+            fast_entry.insert("name".to_string(), Value::String(fast_model));
+            fast_entry.insert(
+                "options".to_string(),
+                serde_json::json!({ "serviceTier": "priority" }),
+            );
+            Some(fast_entry)
+        } else {
+            None
+        };
+        entries.insert(model.clone(), Value::Object(entry));
+        if let Some(fast_entry) = fast_entry {
+            entries.insert(format!("{model}-fast"), Value::Object(fast_entry));
+        }
+    }
+    entries
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_model_entries;
+    use serde_json::json;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn openai_fast_model_keeps_the_original_api_id() {
+        let variants = BTreeMap::from([(
+            "gpt-5.6-sol".to_string(),
+            json!({ "high": { "reasoningEffort": "high" } }),
+        )]);
+
+        let entries =
+            build_model_entries(&["gpt-5.6-sol".to_string()], &variants, "@ai-sdk/openai");
+
+        assert_eq!(
+            entries.get("gpt-5.6-sol-fast"),
+            Some(&json!({
+                "id": "gpt-5.6-sol",
+                "name": "gpt-5.6-sol-fast",
+                "variants": { "high": { "reasoningEffort": "high" } },
+                "options": { "serviceTier": "priority" }
+            }))
+        );
+    }
 }
 
 pub(crate) fn remove_matching_provider(
