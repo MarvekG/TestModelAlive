@@ -112,7 +112,7 @@ pub(crate) fn build_model_entries(
             entry.insert("variants".to_string(), Value::Object(variants));
         }
 
-        let fast_entry = if sdk_package == "@ai-sdk/openai" {
+        let fast_entry = if sdk_package == "@ai-sdk/openai" && model.starts_with("gpt-") {
             let fast_model = format!("{model}-fast");
             let mut fast_entry = entry.clone();
             fast_entry.insert("id".to_string(), Value::String(model.clone()));
@@ -184,6 +184,18 @@ mod tests {
                 "options": { "serviceTier": "priority" }
             }))
         );
+    }
+
+    #[test]
+    fn openai_non_gpt_model_does_not_get_a_fast_alias() {
+        let entries = build_model_entries(
+            &["claude-sonnet-4-6".to_string()],
+            &BTreeMap::new(),
+            "@ai-sdk/openai",
+        );
+
+        assert!(entries.contains_key("claude-sonnet-4-6"));
+        assert!(!entries.contains_key("claude-sonnet-4-6-fast"));
     }
 
     #[test]
