@@ -108,6 +108,9 @@ pub(crate) fn build_model_entries(
             .map(sorted_variants);
         let mut entry = serde_json::Map::new();
         entry.insert("name".to_string(), Value::String(model.clone()));
+        if let Some(limit) = model_limit(model) {
+            entry.insert("limit".to_string(), limit);
+        }
         if let Some(variants) = variants {
             entry.insert("variants".to_string(), Value::Object(variants));
         }
@@ -146,6 +149,43 @@ fn sorted_variants(variants: &serde_json::Map<String, Value>) -> serde_json::Map
         .collect()
 }
 
+fn model_limit(model: &str) -> Option<Value> {
+    let (context, input, output) = match model {
+        "gpt-5.4" | "gpt-5.4-pro" | "gpt-5.5" | "gpt-5.5-pro" | "gpt-5.6" | "gpt-5.6-sol"
+        | "gpt-5.6-terra" | "gpt-5.6-luna" => (1_050_000, Some(922_000), 128_000),
+        "gpt-5.4-mini" | "gpt-5.4-nano" => (400_000, Some(272_000), 128_000),
+        "claude-fable-5" | "claude-opus-4-8" | "claude-opus-4-7" | "claude-opus-4-6"
+        | "claude-sonnet-5" | "claude-sonnet-4-6" => (1_000_000, None, 128_000),
+        "claude-sonnet-4-5" => (1_000_000, None, 64_000),
+        "claude-opus-4-5" | "claude-haiku-4-5" => (200_000, None, 64_000),
+        "gemini-3.5-flash" | "gemini-3.1-pro" | "gemini-3-flash" => (1_048_576, None, 65_536),
+        "deepseek-v4-pro" | "deepseek-v4-flash" => (1_000_000, None, 384_000),
+        "grok-4.5" | "grok-4.6" => (500_000, None, 500_000),
+        "glm-5.2" => (1_000_000, None, 131_072),
+        "glm-5.1" | "glm-5" => (204_800, None, 131_072),
+        "kimi-k2.7-code" => (262_144, None, 262_144),
+        "kimi-k2.6" | "kimi-k2.5" => (262_144, None, 65_536),
+        "minimax-m3" => (512_000, None, 128_000),
+        "minimax-m2.7" | "minimax-m2.5" => (204_800, None, 131_072),
+        "qwen3.7-max" => (1_000_000, None, 65_536),
+        "qwen3.7-plus" => (1_000_000, None, 64_000),
+        "qwen3.6-plus" | "qwen3.5-plus" => (262_144, None, 65_536),
+        "grok-build-0.1" => (256_000, None, 256_000),
+        "big-pickle" => (200_000, Some(160_000), 32_000),
+        "mimo-v2.5-free" => (200_000, None, 32_000),
+        "nemotron-3-ultra-free" => (1_000_000, None, 128_000),
+        "north-mini-code-free" => (256_000, None, 64_000),
+        _ => return None,
+    };
+    let mut limit = serde_json::Map::new();
+    limit.insert("context".to_string(), Value::from(context));
+    if let Some(input) = input {
+        limit.insert("input".to_string(), Value::from(input));
+    }
+    limit.insert("output".to_string(), Value::from(output));
+    Some(Value::Object(limit))
+}
+
 fn variant_rank(variant: &str) -> u8 {
     match variant {
         "none" => 0,
@@ -180,6 +220,7 @@ mod tests {
             Some(&json!({
                 "id": "gpt-5.6-sol",
                 "name": "gpt-5.6-sol-fast",
+                "limit": { "context": 1050000, "input": 922000, "output": 128000 },
                 "variants": { "high": { "reasoningEffort": "high" } },
                 "options": { "serviceTier": "priority" }
             }))
@@ -223,6 +264,34 @@ mod tests {
             variants.keys().collect::<Vec<_>>(),
             ["low", "medium", "high", "xhigh", "max", "ultra"]
         );
+    }
+
+    #[test]
+    fn known_model_gets_official_limit() {
+        let entries = build_model_entries(
+            &["claude-opus-4-6".to_string()],
+            &BTreeMap::new(),
+            "@ai-sdk/openai-compatible",
+        );
+
+        assert_eq!(
+            entries.get("claude-opus-4-6").and_then(|entry| entry.get("limit")),
+            Some(&json!({ "context": 1000000, "output": 128000 }))
+        );
+    }
+
+    #[test]
+    fn unknown_model_has_no_limit() {
+        let entries = build_model_entries(
+            &["custom-local-model".to_string()],
+            &BTreeMap::new(),
+            "@ai-sdk/openai-compatible",
+        );
+
+        assert!(entries
+            .get("custom-local-model")
+            .and_then(|entry| entry.get("limit"))
+            .is_none());
     }
 }
 
