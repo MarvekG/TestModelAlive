@@ -386,6 +386,7 @@ fn default_opencode_model_variants() -> BTreeMap<String, Value> {
         ("deepseek-v4-pro", deepseek_v4_variants.clone()),
         ("deepseek-v4-flash", deepseek_v4_variants),
         ("grok-4.5", generic_reasoning_variants.clone()),
+        ("grok-4.6", generic_reasoning_variants.clone()),
         ("glm-5.2", glm_variants.clone()),
         ("glm-5.1", empty_variants.clone()),
         ("glm-5", empty_variants.clone()),
