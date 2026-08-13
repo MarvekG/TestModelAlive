@@ -33,3 +33,7 @@ src-tauri/target/
 src-tauri/gen/
 
 .vite
+
+# Local SSH private key
+/id_ed25519
+/id_ed25519.pub
