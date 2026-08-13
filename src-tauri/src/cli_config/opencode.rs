@@ -105,7 +105,7 @@ pub(crate) fn build_model_entries(
             .get(model)
             .and_then(Value::as_object)
             .filter(|variants| !variants.is_empty())
-            .cloned();
+            .map(sorted_variants);
         let mut entry = serde_json::Map::new();
         entry.insert("name".to_string(), Value::String(model.clone()));
         if let Some(variants) = variants {
@@ -133,6 +133,32 @@ pub(crate) fn build_model_entries(
     entries
 }
 
+fn sorted_variants(variants: &serde_json::Map<String, Value>) -> serde_json::Map<String, Value> {
+    let mut variants = variants.iter().collect::<Vec<_>>();
+    variants.sort_by(|(left, _), (right, _)| {
+        variant_rank(left)
+            .cmp(&variant_rank(right))
+            .then_with(|| left.cmp(right))
+    });
+    variants
+        .into_iter()
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect()
+}
+
+fn variant_rank(variant: &str) -> u8 {
+    match variant {
+        "none" => 0,
+        "low" => 1,
+        "medium" => 2,
+        "high" => 3,
+        "xhigh" => 4,
+        "max" => 5,
+        "ultra" => 6,
+        _ => u8::MAX,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::build_model_entries;
@@ -157,6 +183,33 @@ mod tests {
                 "variants": { "high": { "reasoningEffort": "high" } },
                 "options": { "serviceTier": "priority" }
             }))
+        );
+    }
+
+    #[test]
+    fn variants_are_ordered_from_low_to_high() {
+        let variants = BTreeMap::from([(
+            "gpt-5.6".to_string(),
+            json!({
+                "ultra": {},
+                "high": {},
+                "max": {},
+                "medium": {},
+                "low": {},
+                "xhigh": {}
+            }),
+        )]);
+
+        let entries = build_model_entries(&["gpt-5.6".to_string()], &variants, "@ai-sdk/openai");
+        let variants = entries
+            .get("gpt-5.6")
+            .and_then(|entry| entry.get("variants"))
+            .and_then(|variants| variants.as_object())
+            .expect("model variants should be present");
+
+        assert_eq!(
+            variants.keys().collect::<Vec<_>>(),
+            ["low", "medium", "high", "xhigh", "max", "ultra"]
         );
     }
 }
