@@ -226,7 +226,7 @@ fn run_model_test(
 fn real_config_command(
     target: &CliConfigTargetKind,
     endpoint_name: Option<&str>,
-    endpoint_id: Option<&str>,
+    _endpoint_id: Option<&str>,
     model: &str,
     prompt: &str,
 ) -> TestCommand {
@@ -236,11 +236,9 @@ fn real_config_command(
         CliConfigTargetKind::Opencode => {
             opencode::real_config_command(endpoint_name.unwrap_or(""), model, prompt)
         }
-        CliConfigTargetKind::Deepseek => deepseek::real_config_command(
-            endpoint_name.unwrap_or(""),
-            endpoint_id.unwrap_or(""),
-            prompt,
-        ),
+        CliConfigTargetKind::Deepseek => {
+            deepseek::real_config_command(endpoint_name.unwrap_or(""), prompt)
+        }
     }
 }
 
@@ -275,16 +273,6 @@ fn validate_real_cli_test_request(request: &RealCliTestRequest) -> Result<(), St
                 return Err(
                     "DeepSeek Harness real config test requires an endpoint name".to_string(),
                 );
-            }
-            if matches!(request.target, CliConfigTargetKind::Deepseek)
-                && request
-                    .endpoint_id
-                    .as_deref()
-                    .unwrap_or("")
-                    .trim()
-                    .is_empty()
-            {
-                return Err("DeepSeek Harness real config test requires an endpoint id".to_string());
             }
         }
         CliConfigTargetKind::Opencode => {

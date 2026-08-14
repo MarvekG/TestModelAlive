@@ -22,15 +22,7 @@ pub(crate) fn dsh_provider_name_for_endpoint_name(endpoint_name: &str) -> String
 }
 
 pub(crate) fn dsh_api_key_env(endpoint: &SavedEndpoint) -> String {
-    dsh_api_key_env_for_endpoint_id(&endpoint.id)
-}
-
-pub(crate) fn dsh_api_key_env_for_endpoint_id(endpoint_id: &str) -> String {
-    let id = endpoint_id
-        .bytes()
-        .map(|byte| format!("{byte:02X}"))
-        .collect::<String>();
-    format!("TMA_DSH_{id}_API_KEY")
+    dsh_api_key_env_for_name(&endpoint.name)
 }
 
 pub(crate) fn dsh_api_key_env_for_name(endpoint_name: &str) -> String {
@@ -187,7 +179,6 @@ fn remove_deepseek_provider_credentials_content(
 ) -> Result<String, String> {
     let mut credentials = read_yaml_mapping(path)?;
     credentials.remove(&yaml_key(&dsh_api_key_env(endpoint)));
-    credentials.remove(&yaml_key(&dsh_api_key_env_for_name(&endpoint.name)));
     serialize_yaml_mapping(&credentials)
 }
 
@@ -567,9 +558,9 @@ mod tests {
 
     use super::{
         build_deepseek_preview_with_warnings, build_settings_content, build_test_settings_content,
-        dsh_api_key_env, dsh_api_key_env_for_endpoint_id,
-        remove_deepseek_provider_credentials_content, remove_deepseek_provider_settings_content,
-        restore_official_settings_content, DSH_TEST_MAX_TOKENS, DSH_THIRD_PARTY_MAX_TOKENS,
+        dsh_api_key_env, remove_deepseek_provider_credentials_content,
+        remove_deepseek_provider_settings_content, restore_official_settings_content,
+        DSH_TEST_MAX_TOKENS, DSH_THIRD_PARTY_MAX_TOKENS,
     };
     use crate::model_metadata::model_limit;
     use crate::models::SavedEndpoint;
@@ -601,7 +592,7 @@ mod tests {
             value["llm-pi-ai"]["providers"]["tma-Example"],
             json!({
                 "displayName": "Example",
-                "apiKeyEnv": "TMA_DSH_646565707365656B2D746573742D303031_API_KEY",
+                "apiKeyEnv": "TMA_DSH_EXAMPLE_API_KEY",
                 "api": "openai-completions",
                 "baseURL": "https://api.example.com/v1",
                 "models": [{ "id": "example-model" }]
@@ -614,18 +605,11 @@ mod tests {
     }
 
     #[test]
-    fn credentials_env_name_uses_the_stable_endpoint_id() {
-        assert_eq!(
-            dsh_api_key_env_for_endpoint_id("deepseek-20260814101015-001"),
-            "TMA_DSH_646565707365656B2D32303236303831343130313031352D303031_API_KEY"
-        );
-        let mut lower_case_name = endpoint();
-        lower_case_name.name = "example".to_string();
-        lower_case_name.id = "deepseek-test-002".to_string();
-        assert_ne!(
-            dsh_api_key_env(&endpoint()),
-            dsh_api_key_env(&lower_case_name)
-        );
+    fn credentials_env_name_uses_the_readable_endpoint_name() {
+        assert_eq!(dsh_api_key_env(&endpoint()), "TMA_DSH_EXAMPLE_API_KEY");
+        let mut other_name = endpoint();
+        other_name.name = "Other".to_string();
+        assert_ne!(dsh_api_key_env(&endpoint()), dsh_api_key_env(&other_name));
     }
 
     #[test]
@@ -683,7 +667,7 @@ mod tests {
         assert!(warnings.is_empty());
         assert_eq!(
             value["llm-deepseek"]["apiKeyEnv"],
-            json!("TMA_DSH_646565707365656B2D746573742D303031_API_KEY")
+            json!("TMA_DSH_EXAMPLE_API_KEY")
         );
         assert_eq!(
             value["llm-deepseek"]["baseURL"],
@@ -824,7 +808,7 @@ mod tests {
         let path = temporary_settings_path();
         fs::write(
             &path,
-            "TMA_DSH_646565707365656B2D746573742D303031_API_KEY: current-key\nTMA_DSH_EXAMPLE_API_KEY: legacy-key\nOTHER_API_KEY: keep\n",
+            "TMA_DSH_EXAMPLE_API_KEY: current-key\nOTHER_API_KEY: keep\n",
         )
         .expect("test credentials should be written");
         let result = remove_deepseek_provider_credentials_content(&path, &endpoint());
@@ -833,9 +817,6 @@ mod tests {
         let value: serde_json::Value =
             serde_yaml::from_str(&content).expect("updated credentials should be valid YAML");
 
-        assert!(value
-            .get("TMA_DSH_646565707365656B2D746573742D303031_API_KEY")
-            .is_none());
         assert!(value.get("TMA_DSH_EXAMPLE_API_KEY").is_none());
         assert_eq!(value["OTHER_API_KEY"], json!("keep"));
     }

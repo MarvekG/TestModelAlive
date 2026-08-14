@@ -2,8 +2,8 @@ use serde_yaml::{Mapping, Value};
 use std::fs;
 
 use crate::cli_config::deepseek::{
-    build_test_settings_content, dsh_api_key_env, dsh_api_key_env_for_endpoint_id,
-    dsh_api_key_env_for_name, dsh_provider_name_for_endpoint_name, parse_yaml_mapping,
+    build_test_settings_content, dsh_api_key_env, dsh_api_key_env_for_name,
+    dsh_provider_name_for_endpoint_name, parse_yaml_mapping,
 };
 use crate::models::SavedEndpoint;
 use crate::paths::{app_data_dir, dsh_home_dir};
@@ -75,11 +75,7 @@ fn mapping_string<'a>(mapping: &'a Mapping, key: &str) -> Option<&'a str> {
         .and_then(Value::as_str)
 }
 
-pub(crate) fn real_config_command(
-    endpoint_name: &str,
-    endpoint_id: &str,
-    prompt: &str,
-) -> TestCommand {
+pub(crate) fn real_config_command(endpoint_name: &str, prompt: &str) -> TestCommand {
     TestCommand {
         program: "dsh".to_string(),
         args: vec![
@@ -89,10 +85,7 @@ pub(crate) fn real_config_command(
         ],
         envs: Vec::new(),
         // Force this check to use the credential file written by the applied configuration.
-        env_remove: vec![
-            dsh_api_key_env_for_endpoint_id(endpoint_id),
-            dsh_api_key_env_for_name(endpoint_name),
-        ],
+        env_remove: vec![dsh_api_key_env_for_name(endpoint_name)],
     }
 }
 
