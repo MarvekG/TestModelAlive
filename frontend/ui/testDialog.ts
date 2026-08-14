@@ -203,3 +203,56 @@ export function chooseOpenCodeApplyOptions(options: {
     setDefaultModel?.focus();
   });
 }
+
+export function chooseDeepSeekApplyOptions(options: {
+  models: string[];
+  t: (key: string) => string;
+  isModalOpen: () => boolean;
+}): Promise<string | null> {
+  const { models, t, isModalOpen } = options;
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "choice-modal";
+    overlay.innerHTML = `
+      <div class="choice-dialog opencode-options-dialog" role="dialog" aria-modal="true">
+        <h2>${escapeHtml(t("deepSeekApplyOptionsTitle"))}</h2>
+        <section class="opencode-option-card">
+          <label>
+            <span>${escapeHtml(t("deepSeekDefaultModel"))}</span>
+            <select class="model-select">
+              ${models.map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join("")}
+            </select>
+          </label>
+          <small>${escapeHtml(t("deepSeekDefaultModelHint"))}</small>
+        </section>
+        <div class="actions choice-actions">
+          <button data-action="confirm">${escapeHtml(t("confirm"))}</button>
+          <button data-action="cancel" class="secondary">${escapeHtml(t("cancel"))}</button>
+        </div>
+      </div>
+    `;
+    const modelSelect = overlay.querySelector<HTMLSelectElement>("select.model-select");
+    const finish = (value: string | null) => {
+      document.removeEventListener("keydown", onKeyDown);
+      overlay.remove();
+      document.body.classList.toggle("modal-open", isModalOpen());
+      resolve(value);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") finish(null);
+    };
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) finish(null);
+    });
+    overlay.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (button.dataset.action === "confirm") finish(modelSelect?.value ?? null);
+        else finish(null);
+      });
+    });
+    document.body.classList.add("modal-open");
+    document.addEventListener("keydown", onKeyDown);
+    document.body.append(overlay);
+    modelSelect?.focus();
+  });
+}

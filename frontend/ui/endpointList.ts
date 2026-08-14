@@ -5,6 +5,7 @@ import { maskKey } from "../utils/mask";
 export function endpointTypeLabel(type: EndpointType) {
   if (type === "codex") return "Codex";
   if (type === "claude") return "Claude";
+  if (type === "deepseek") return "DeepSeek Harness";
   return "OpenCode";
 }
 

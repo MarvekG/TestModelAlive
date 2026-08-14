@@ -17,7 +17,7 @@ use crate::settings::{
     CliConfigApplyHistoryItem, CliConfigBaselineView,
 };
 
-use super::opencode;
+use super::{deepseek, opencode};
 
 #[tauri::command]
 pub fn build_cli_config_preview(
@@ -168,6 +168,10 @@ fn normalize_edited_content(
             "{}\n",
             serde_json::to_string_pretty(&value).map_err(|err| err.to_string())?
         ));
+    }
+    if matches!(target, CliConfigTargetKind::Deepseek) {
+        let value = deepseek::parse_yaml_mapping(path, content)?;
+        return deepseek::serialize_yaml_mapping(&value);
     }
     Ok(content.to_string())
 }

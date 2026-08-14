@@ -6,6 +6,7 @@ pub enum CliConfigTargetKind {
     Codex,
     Claude,
     Opencode,
+    Deepseek,
 }
 
 impl CliConfigTargetKind {
@@ -14,6 +15,7 @@ impl CliConfigTargetKind {
             Self::Codex => "codex",
             Self::Claude => "claude",
             Self::Opencode => "opencode",
+            Self::Deepseek => "deepseek",
         }
     }
 }
@@ -30,6 +32,7 @@ pub struct CliConfigPreview {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CliConfigPreviewWarning {
     OpenCodeProviderOverwrite { provider: String },
+    DeepseekProviderOverwrite { provider: String },
 }
 
 #[derive(Clone, Debug, Serialize)]

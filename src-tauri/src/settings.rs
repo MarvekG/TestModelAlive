@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -20,8 +19,6 @@ pub struct AppSettings {
     pub endpoints: Vec<SavedEndpoint>,
     #[serde(default = "default_test_settings")]
     pub test_settings: TestSettings,
-    #[serde(default = "default_opencode_model_variants")]
-    pub opencode_model_variants: BTreeMap<String, Value>,
     #[serde(default = "default_cli_config_settings")]
     pub cli_config: CliConfigSettings,
 }
@@ -118,27 +115,22 @@ pub fn default_test_settings() -> TestSettings {
 
 pub fn read_app_settings(app: &tauri::AppHandle) -> Result<AppSettings, String> {
     let path = store_path(app, APP_SETTINGS_FILE)?;
-    let mut missing_opencode_variants = false;
+    let mut removed_opencode_variants = false;
     let mut settings = if path.exists() {
         let text = fs::read_to_string(&path).map_err(|err| err.to_string())?;
-        missing_opencode_variants = !text.contains("\"opencode_model_variants\"");
-        serde_json::from_str::<AppSettings>(&text).map_err(|err| err.to_string())?
+        let mut value: Value = serde_json::from_str(&text).map_err(|err| err.to_string())?;
+        removed_opencode_variants = remove_opencode_model_variants(&mut value);
+        serde_json::from_value::<AppSettings>(value).map_err(|err| err.to_string())?
     } else {
         default_app_settings(app)?
     };
     let migrated_apply_history = migrate_apply_history_out_of_settings(app, &mut settings)?;
     let normalized_settings = normalize_app_settings(app, &mut settings)?;
-    if !path.exists() || missing_opencode_variants || migrated_apply_history || normalized_settings
+    if !path.exists() || removed_opencode_variants || migrated_apply_history || normalized_settings
     {
         write_app_settings(&path, &settings)?;
     }
     Ok(settings)
-}
-
-pub fn read_opencode_model_variants(
-    app: &tauri::AppHandle,
-) -> Result<BTreeMap<String, Value>, String> {
-    Ok(read_app_settings(app)?.opencode_model_variants)
 }
 
 pub fn write_app_settings_for_app(
@@ -236,195 +228,11 @@ fn default_apply_history_limit() -> usize {
     20
 }
 
-fn default_opencode_model_variants() -> BTreeMap<String, Value> {
-    let gpt_variants = serde_json::json!({
-        "none": {},
-        "low": {
-            "reasoningEffort": "low",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "medium": {
-            "reasoningEffort": "medium",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "high": {
-            "reasoningEffort": "high",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "xhigh": {
-            "reasoningEffort": "xhigh",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        }
-    });
-    let gpt_pro_variants = serde_json::json!({
-        "medium": {
-            "reasoningEffort": "medium",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "high": {
-            "reasoningEffort": "high",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "xhigh": {
-            "reasoningEffort": "xhigh",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        }
-    });
-    let gpt_56_variants = serde_json::json!({
-        "low": {
-            "reasoningEffort": "low",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "medium": {
-            "reasoningEffort": "medium",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "high": {
-            "reasoningEffort": "high",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "xhigh": {
-            "reasoningEffort": "xhigh",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "max": {
-            "reasoningEffort": "max",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "ultra": {
-            "reasoningEffort": "ultra",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        }
-    });
-    let gpt_56_luna_variants = serde_json::json!({
-        "low": {
-            "reasoningEffort": "low",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "medium": {
-            "reasoningEffort": "medium",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "high": {
-            "reasoningEffort": "high",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "xhigh": {
-            "reasoningEffort": "xhigh",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        },
-        "max": {
-            "reasoningEffort": "max",
-            "textVerbosity": "low",
-            "reasoningSummary": "auto"
-        }
-    });
-    let generic_reasoning_variants = serde_json::json!({
-        "low": { "reasoningEffort": "low" },
-        "medium": { "reasoningEffort": "medium" },
-        "high": { "reasoningEffort": "high" }
-    });
-    let deepseek_v4_variants = serde_json::json!({
-        "low": { "reasoningEffort": "low" },
-        "medium": { "reasoningEffort": "medium" },
-        "high": { "reasoningEffort": "high" },
-        "max": { "reasoningEffort": "max" }
-    });
-    let glm_variants = serde_json::json!({
-        "high": { "reasoningEffort": "high" },
-        "max": { "reasoningEffort": "max" }
-    });
-    let minimax_m3_variants = serde_json::json!({
-        "none": { "thinking": { "type": "disabled" } },
-        "thinking": { "thinking": { "type": "adaptive" } }
-    });
-    let north_mini_code_variants = serde_json::json!({
-        "none": { "reasoningEffort": "none" },
-        "high": { "reasoningEffort": "high" }
-    });
-    let empty_variants = serde_json::json!({});
-    [
-        ("gpt-5.4", gpt_variants.clone()),
-        ("gpt-5.4-pro", gpt_pro_variants.clone()),
-        ("gpt-5.4-mini", gpt_variants.clone()),
-        ("gpt-5.4-nano", gpt_variants.clone()),
-        ("gpt-5.5", gpt_variants.clone()),
-        ("gpt-5.5-pro", gpt_pro_variants),
-        ("gpt-5.6", gpt_56_variants.clone()),
-        ("gpt-5.6-sol", gpt_56_variants.clone()),
-        ("gpt-5.6-terra", gpt_56_variants.clone()),
-        ("gpt-5.6-luna", gpt_56_luna_variants.clone()),
-        ("claude-fable-5", generic_reasoning_variants.clone()),
-        ("claude-opus-4-8", generic_reasoning_variants.clone()),
-        ("claude-opus-4-7", generic_reasoning_variants.clone()),
-        ("claude-opus-4-6", generic_reasoning_variants.clone()),
-        ("claude-opus-4-5", generic_reasoning_variants.clone()),
-        ("claude-sonnet-5", generic_reasoning_variants.clone()),
-        ("claude-sonnet-4-6", generic_reasoning_variants.clone()),
-        ("claude-sonnet-4-5", generic_reasoning_variants.clone()),
-        ("claude-haiku-4-5", generic_reasoning_variants.clone()),
-        ("gemini-3.5-flash", generic_reasoning_variants.clone()),
-        ("gemini-3.1-pro", generic_reasoning_variants.clone()),
-        ("gemini-3-flash", generic_reasoning_variants.clone()),
-        ("deepseek-v4-pro", deepseek_v4_variants.clone()),
-        ("deepseek-v4-flash", deepseek_v4_variants),
-        ("grok-4.5", generic_reasoning_variants.clone()),
-        ("grok-4.6", generic_reasoning_variants.clone()),
-        ("hy3", generic_reasoning_variants.clone()),
-        ("laguna-s-2.1", generic_reasoning_variants.clone()),
-        ("ling-3.0-flash", generic_reasoning_variants.clone()),
-        ("ling-3.0-tiny", empty_variants.clone()),
-        ("glm-5.2", glm_variants.clone()),
-        ("glm-5.1", empty_variants.clone()),
-        ("glm-5", empty_variants.clone()),
-        ("kimi-k2.7-code", empty_variants.clone()),
-        ("kimi-k2.6", empty_variants.clone()),
-        ("kimi-k2.5", empty_variants.clone()),
-        ("mimo-v2.5", empty_variants.clone()),
-        ("minimax-m3", minimax_m3_variants),
-        ("minimax-m2.7", empty_variants.clone()),
-        ("minimax-m2.5", empty_variants.clone()),
-        ("nemotron-3-ultra", empty_variants.clone()),
-        ("nemotron-3.5-lightning", empty_variants.clone()),
-        ("north-mini-code", north_mini_code_variants.clone()),
-        ("qwen3.7-max", empty_variants.clone()),
-        ("qwen3.7-plus", empty_variants.clone()),
-        ("qwen3.6-plus", empty_variants.clone()),
-        ("qwen3.5-plus", empty_variants.clone()),
-        ("grok-build-0.1", empty_variants.clone()),
-        ("big-pickle", empty_variants.clone()),
-        ("mimo-v2.5-free", empty_variants.clone()),
-        ("nemotron-3-ultra-free", empty_variants.clone()),
-        ("north-mini-code-free", north_mini_code_variants),
-    ]
-    .into_iter()
-    .map(|(model, params)| (model.to_string(), params))
-    .collect()
-}
-
 fn default_app_settings(app: &tauri::AppHandle) -> Result<AppSettings, String> {
     Ok(AppSettings {
         version: 1,
         endpoints: Vec::new(),
         test_settings: default_test_settings(),
-        opencode_model_variants: default_opencode_model_variants(),
         cli_config: CliConfigSettings {
             baseline_id: timestamp_id("baseline"),
             backup_root: app_data_dir(app)?
@@ -442,14 +250,7 @@ fn normalize_app_settings(
     app: &tauri::AppHandle,
     settings: &mut AppSettings,
 ) -> Result<bool, String> {
-    let default_variants = default_opencode_model_variants();
     let mut changed = false;
-    for (model, variants) in default_variants {
-        if !settings.opencode_model_variants.contains_key(&model) {
-            settings.opencode_model_variants.insert(model, variants);
-            changed = true;
-        }
-    }
     settings.endpoints.retain(|endpoint| {
         !endpoint.id.is_empty()
             && is_valid_endpoint_name(&endpoint.name)
@@ -516,12 +317,19 @@ fn normalize_test_settings(settings: &mut TestSettings) {
     }
 }
 
+fn remove_opencode_model_variants(value: &mut Value) -> bool {
+    value
+        .as_object_mut()
+        .and_then(|object| object.remove("opencode_model_variants"))
+        .is_some()
+}
+
 fn is_valid_endpoint_name(name: &str) -> bool {
     !name.is_empty() && name.chars().all(|ch| ch.is_ascii_alphanumeric())
 }
 
 fn is_valid_endpoint_type(endpoint_type: &str) -> bool {
-    matches!(endpoint_type, "codex" | "claude" | "opencode")
+    matches!(endpoint_type, "codex" | "claude" | "opencode" | "deepseek")
 }
 
 fn is_valid_opencode_sdk_package(package: &str) -> bool {
@@ -535,12 +343,14 @@ fn _path_text(path: PathBuf) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::default_opencode_model_variants;
+    use crate::model_metadata::opencode_model_variants;
     use serde_json::json;
+
+    use super::remove_opencode_model_variants;
 
     #[test]
     fn requested_models_use_advertised_reasoning_variants() {
-        let variants = default_opencode_model_variants();
+        let variants = opencode_model_variants();
         let generic = json!({
             "low": { "reasoningEffort": "low" },
             "medium": { "reasoningEffort": "medium" },
@@ -563,5 +373,16 @@ mod tests {
         ] {
             assert_eq!(variants.get(model), Some(&json!({})));
         }
+    }
+
+    #[test]
+    fn legacy_settings_drop_persisted_model_variants() {
+        let mut settings = json!({
+            "opencode_model_variants": { "deepseek-v4-flash": { "max": {} } },
+            "endpoints": []
+        });
+
+        assert!(remove_opencode_model_variants(&mut settings));
+        assert!(settings.get("opencode_model_variants").is_none());
     }
 }

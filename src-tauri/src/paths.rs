@@ -63,7 +63,31 @@ pub fn cli_target_files(
             opencode_config_path()?,
             "json".to_string(),
         )]),
+        CliConfigTargetKind::Deepseek => {
+            let dsh_home = dsh_home_dir()?;
+            Ok(vec![
+                (
+                    "deepseek-settings".to_string(),
+                    dsh_home.join("settings.yaml"),
+                    "yaml".to_string(),
+                ),
+                (
+                    "deepseek-credentials".to_string(),
+                    dsh_home.join(".credentials.yaml"),
+                    "yaml".to_string(),
+                ),
+            ])
+        }
     }
+}
+
+pub fn dsh_home_dir() -> Result<PathBuf, String> {
+    if let Some(path) = std::env::var_os("DSH_HOME") {
+        if !path.is_empty() {
+            return Ok(PathBuf::from(path));
+        }
+    }
+    Ok(user_home_dir()?.join(".dsh"))
 }
 
 pub fn opencode_config_path() -> Result<PathBuf, String> {

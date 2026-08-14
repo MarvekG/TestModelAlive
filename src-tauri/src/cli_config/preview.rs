@@ -6,14 +6,14 @@ use crate::cli_config::types::{
     CliConfigPreview, CliConfigPreviewFile, CliConfigTargetKind, EditedCliConfig,
     OpenCodeTimeoutOptions,
 };
+use crate::model_metadata::opencode_model_variants;
 use crate::models::SavedEndpoint;
 use crate::paths::cli_target_files;
-use crate::settings::read_opencode_model_variants;
 
-use super::{claude, codex, opencode};
+use super::{claude, codex, deepseek, opencode};
 
 pub(crate) fn build_preview(
-    app: &tauri::AppHandle,
+    _app: &tauri::AppHandle,
     endpoint: SavedEndpoint,
     target: CliConfigTargetKind,
     selected_models: Vec<String>,
@@ -31,14 +31,23 @@ pub(crate) fn build_preview(
             claude::build_claude_preview(&endpoint, &selected_models[0], &files)?
         }
         CliConfigTargetKind::Opencode => {
-            let model_variants = read_opencode_model_variants(app)?;
             let (files, preview_warnings) = opencode::build_opencode_preview_with_warnings(
                 &endpoint,
                 &selected_models,
                 &files,
                 default_model,
                 timeouts,
-                &model_variants,
+                opencode_model_variants(),
+            )?;
+            warnings = preview_warnings;
+            files
+        }
+        CliConfigTargetKind::Deepseek => {
+            let (files, preview_warnings) = deepseek::build_deepseek_preview_with_warnings(
+                &endpoint,
+                &selected_models,
+                default_model,
+                &files,
             )?;
             warnings = preview_warnings;
             files
@@ -80,6 +89,16 @@ pub(crate) fn validate_cli_target(
             }
             if selected_models.is_empty() {
                 return Err("OpenCode config requires at least one selected model".to_string());
+            }
+        }
+        CliConfigTargetKind::Deepseek => {
+            if endpoint.endpoint_type != "deepseek" {
+                return Err("DeepSeek Harness config requires a deepseek endpoint".to_string());
+            }
+            if selected_models.is_empty() {
+                return Err(
+                    "DeepSeek Harness config requires at least one selected model".to_string(),
+                );
             }
         }
     }

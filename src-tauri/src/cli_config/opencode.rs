@@ -149,41 +149,8 @@ fn sorted_variants(variants: &serde_json::Map<String, Value>) -> serde_json::Map
         .collect()
 }
 
-fn model_limit(model: &str) -> Option<Value> {
-    let (context, input, output) = match model {
-        "gpt-5.4" | "gpt-5.4-pro" | "gpt-5.5" | "gpt-5.5-pro" | "gpt-5.6" | "gpt-5.6-sol"
-        | "gpt-5.6-terra" | "gpt-5.6-luna" => (1_050_000, Some(922_000), 128_000),
-        "gpt-5.4-mini" | "gpt-5.4-nano" => (400_000, Some(272_000), 128_000),
-        "claude-fable-5" | "claude-opus-4-8" | "claude-opus-4-7" | "claude-opus-4-6"
-        | "claude-sonnet-5" | "claude-sonnet-4-6" => (1_000_000, None, 128_000),
-        "claude-sonnet-4-5" => (1_000_000, None, 64_000),
-        "claude-opus-4-5" | "claude-haiku-4-5" => (200_000, None, 64_000),
-        "gemini-3.5-flash" | "gemini-3.1-pro" | "gemini-3-flash" => (1_048_576, None, 65_536),
-        "deepseek-v4-pro" | "deepseek-v4-flash" => (1_000_000, None, 384_000),
-        "grok-4.5" | "grok-4.6" => (500_000, None, 500_000),
-        "glm-5.2" => (1_000_000, None, 131_072),
-        "glm-5.1" | "glm-5" => (204_800, None, 131_072),
-        "kimi-k2.7-code" => (262_144, None, 262_144),
-        "kimi-k2.6" | "kimi-k2.5" => (262_144, None, 65_536),
-        "minimax-m3" => (512_000, None, 128_000),
-        "minimax-m2.7" | "minimax-m2.5" => (204_800, None, 131_072),
-        "qwen3.7-max" => (1_000_000, None, 65_536),
-        "qwen3.7-plus" => (1_000_000, None, 64_000),
-        "qwen3.6-plus" | "qwen3.5-plus" => (262_144, None, 65_536),
-        "grok-build-0.1" => (256_000, None, 256_000),
-        "big-pickle" => (200_000, Some(160_000), 32_000),
-        "mimo-v2.5-free" => (200_000, None, 32_000),
-        "nemotron-3-ultra-free" => (1_000_000, None, 128_000),
-        "north-mini-code-free" => (256_000, None, 64_000),
-        _ => return None,
-    };
-    let mut limit = serde_json::Map::new();
-    limit.insert("context".to_string(), Value::from(context));
-    if let Some(input) = input {
-        limit.insert("input".to_string(), Value::from(input));
-    }
-    limit.insert("output".to_string(), Value::from(output));
-    Some(Value::Object(limit))
+pub(crate) fn model_limit(model: &str) -> Option<Value> {
+    crate::model_metadata::model_limit(model)
 }
 
 fn variant_rank(variant: &str) -> u8 {
@@ -194,7 +161,6 @@ fn variant_rank(variant: &str) -> u8 {
         "high" => 3,
         "xhigh" => 4,
         "max" => 5,
-        "ultra" => 6,
         _ => u8::MAX,
     }
 }
@@ -244,7 +210,6 @@ mod tests {
         let variants = BTreeMap::from([(
             "gpt-5.6".to_string(),
             json!({
-                "ultra": {},
                 "high": {},
                 "max": {},
                 "medium": {},
@@ -262,7 +227,7 @@ mod tests {
 
         assert_eq!(
             variants.keys().collect::<Vec<_>>(),
-            ["low", "medium", "high", "xhigh", "max", "ultra"]
+            ["low", "medium", "high", "xhigh", "max"]
         );
     }
 

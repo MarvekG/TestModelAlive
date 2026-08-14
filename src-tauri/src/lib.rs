@@ -1,6 +1,7 @@
 mod cli_config;
 mod endpoints;
 mod logging;
+mod model_metadata;
 mod models;
 mod paths;
 mod settings;

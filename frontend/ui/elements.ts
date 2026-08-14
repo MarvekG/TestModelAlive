@@ -26,6 +26,7 @@ export function getElements() {
     startRealConfigTest: byId<HTMLButtonElement>("start-real-config-test"),
     stopTest: byId<HTMLButtonElement>("stop-test"),
     applyCodex: byId<HTMLButtonElement>("apply-codex"),
+    applyDeepseek: byId<HTMLButtonElement>("apply-deepseek"),
     applyOpenCode: byId<HTMLButtonElement>("apply-opencode"),
     removeOpenCode: byId<HTMLButtonElement>("remove-opencode"),
     applyClaude: byId<HTMLButtonElement>("apply-claude"),
