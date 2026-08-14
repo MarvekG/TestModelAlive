@@ -59,9 +59,9 @@ fn configured_default_model_from_settings(
     let provider = mapping_string(default_model, "provider")
         .ok_or_else(|| "DeepSeek Harness default provider is missing".to_string())?;
     let expected_provider = dsh_provider_name_for_endpoint_name(endpoint_name);
-    if provider != expected_provider {
+    if provider != expected_provider && provider != "deepseek-official" {
         return Err(format!(
-            "DeepSeek Harness default provider is {provider}, not {expected_provider}"
+            "DeepSeek Harness default provider is {provider}, not {expected_provider} or deepseek-official"
         ));
     }
     mapping_string(default_model, "model")
@@ -127,5 +127,19 @@ mod tests {
         .expect("settings should parse");
 
         assert!(configured_default_model_from_settings(&settings, "Example").is_err());
+    }
+
+    #[test]
+    fn accepts_the_direct_deepseek_provider() {
+        let settings = parse_yaml_mapping(
+            Path::new("settings.yaml"),
+            "agent-default-model:\n  provider: deepseek-official\n  model: deepseek-v4-flash\n",
+        )
+        .expect("settings should parse");
+
+        assert_eq!(
+            configured_default_model_from_settings(&settings, "Example"),
+            Ok("deepseek-v4-flash".to_string())
+        );
     }
 }

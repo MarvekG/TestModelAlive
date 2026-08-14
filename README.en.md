@@ -128,8 +128,8 @@ The success condition is configurable:
 
 - For a DeepSeek Harness endpoint, select one or more models, click "Apply to DeepSeek Harness", and choose one of them as the default model.
 - The app merges DSH's `settings.yaml` and `.credentials.yaml` under `DSH_HOME` when set, or under the default `~/.dsh/` directory.
-- The OpenAI-compatible provider is named `tma-<endpoint name>`, and the selected model becomes DSH's `agent-default-model`.
-- The app reuses OpenCode's maintained model context, maximum-output, and reasoning-level values, converting them to DSH YAML fields; unknown models retain DSH defaults.
+- `deepseek-v4-flash` and `deepseek-v4-pro` are written to the native `llm-deepseek` configuration and use `deepseek-official` as their `agent-default-model` provider. Other models remain in the OpenAI-compatible `tma-<endpoint name>` provider.
+- The app reuses embedded context-window and maximum-output values. `llm-pi-ai` models also receive converted OpenCode reasoning levels; unknown models retain DSH defaults.
 - Model metadata is embedded in `src-tauri/src/model_metadata.json`, not written to `~/.TestModelAlive/settings.json`; startup automatically removes the legacy `opencode_model_variants` field.
 - DeepSeek Harness is currently in developer preview and may introduce breaking configuration changes. Run "Test Current Config" after upgrading DSH.
 

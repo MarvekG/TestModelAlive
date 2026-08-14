@@ -8,6 +8,8 @@ use crate::models::SavedEndpoint;
 
 use super::preview::preview_file;
 
+const DSH_DEEPSEEK_PROVIDER: &str = "deepseek-official";
+
 pub(crate) fn dsh_provider_name(endpoint: &SavedEndpoint) -> String {
     dsh_provider_name_for_endpoint_name(&endpoint.name)
 }
@@ -44,12 +46,10 @@ pub(crate) fn build_deepseek_preview_with_warnings(
     for (file_id, path, language) in files {
         let content = match file_id.as_str() {
             "deepseek-settings" => {
-                let (content, provider_exists) =
+                let (content, overwritten_providers) =
                     build_settings_content_with_overwrite(path, endpoint, models, &default_model)?;
-                if provider_exists {
-                    warnings.push(CliConfigPreviewWarning::DeepseekProviderOverwrite {
-                        provider: dsh_provider_name(endpoint),
-                    });
+                for provider in overwritten_providers {
+                    warnings.push(CliConfigPreviewWarning::DeepseekProviderOverwrite { provider });
                 }
                 content
             }
@@ -79,24 +79,79 @@ fn build_settings_content_with_overwrite(
     endpoint: &SavedEndpoint,
     models: &[String],
     default_model: &str,
-) -> Result<(String, bool), String> {
+) -> Result<(String, Vec<String>), String> {
     let mut root = read_yaml_mapping(path)?;
-    let llm = nested_mapping(&mut root, "llm-pi-ai", "settings.llm-pi-ai")?;
-    let providers = nested_mapping(llm, "providers", "settings.llm-pi-ai.providers")?;
+    let direct_models = models
+        .iter()
+        .filter(|model| is_direct_deepseek_model(model))
+        .cloned()
+        .collect::<Vec<_>>();
+    let pi_models = models
+        .iter()
+        .filter(|model| !is_direct_deepseek_model(model))
+        .cloned()
+        .collect::<Vec<_>>();
     let provider_name = dsh_provider_name(endpoint);
-    let provider_key = yaml_key(&provider_name);
-    let provider_exists = providers.contains_key(&provider_key);
-    providers.insert(provider_key, provider_definition(endpoint, models));
+    let mut overwritten_providers = Vec::new();
+    if pi_models.is_empty() {
+        if remove_pi_ai_provider(&mut root, &provider_name)? {
+            overwritten_providers.push(provider_name.clone());
+        }
+    } else {
+        let llm = nested_mapping(&mut root, "llm-pi-ai", "settings.llm-pi-ai")?;
+        let providers = nested_mapping(llm, "providers", "settings.llm-pi-ai.providers")?;
+        let provider_key = yaml_key(&provider_name);
+        if providers.contains_key(&provider_key) {
+            overwritten_providers.push(provider_name.clone());
+        }
+        providers.insert(provider_key, provider_definition(endpoint, &pi_models));
+    }
+    if !direct_models.is_empty() {
+        if root.contains_key(&yaml_key("llm-deepseek")) {
+            overwritten_providers.push(DSH_DEEPSEEK_PROVIDER.to_string());
+        }
+        root.insert(
+            yaml_key("llm-deepseek"),
+            direct_deepseek_definition(endpoint, &direct_models),
+        );
+    }
 
     let mut default_model_config = Mapping::new();
-    default_model_config.insert(yaml_key("provider"), Value::String(provider_name));
+    let default_provider = if is_direct_deepseek_model(default_model) {
+        DSH_DEEPSEEK_PROVIDER.to_string()
+    } else {
+        provider_name
+    };
+    default_model_config.insert(yaml_key("provider"), Value::String(default_provider));
     default_model_config.insert(yaml_key("model"), Value::String(default_model.to_string()));
+    if is_direct_deepseek_model(default_model) {
+        default_model_config.insert(
+            yaml_key("reasoningEffort"),
+            Value::String("high".to_string()),
+        );
+    }
     root.insert(
         yaml_key("agent-default-model"),
         Value::Mapping(default_model_config),
     );
 
-    Ok((serialize_yaml_mapping(&root)?, provider_exists))
+    Ok((serialize_yaml_mapping(&root)?, overwritten_providers))
+}
+
+fn remove_pi_ai_provider(root: &mut Mapping, provider_name: &str) -> Result<bool, String> {
+    let Some(llm) = root
+        .get_mut(&yaml_key("llm-pi-ai"))
+        .and_then(Value::as_mapping_mut)
+    else {
+        return Ok(false);
+    };
+    let Some(providers) = llm
+        .get_mut(&yaml_key("providers"))
+        .and_then(Value::as_mapping_mut)
+    else {
+        return Ok(false);
+    };
+    Ok(providers.remove(&yaml_key(provider_name)).is_some())
 }
 
 fn build_credentials_content(path: &Path, endpoint: &SavedEndpoint) -> Result<String, String> {
@@ -130,6 +185,58 @@ fn provider_definition(endpoint: &SavedEndpoint, models: &[String]) -> Value {
     );
     provider.insert(yaml_key("models"), Value::Sequence(model_entries));
     Value::Mapping(provider)
+}
+
+fn direct_deepseek_definition(endpoint: &SavedEndpoint, models: &[String]) -> Value {
+    let model_entries = models
+        .iter()
+        .map(|model| direct_deepseek_model_definition(model))
+        .collect();
+    let mut provider = Mapping::new();
+    provider.insert(
+        yaml_key("apiKeyEnv"),
+        Value::String(dsh_api_key_env(endpoint)),
+    );
+    provider.insert(
+        yaml_key("baseURL"),
+        Value::String(endpoint.base_url.clone()),
+    );
+    provider.insert(yaml_key("thinking"), Value::String("enabled".to_string()));
+    provider.insert(
+        yaml_key("reasoningEffort"),
+        Value::String("high".to_string()),
+    );
+    if let Some(limit) = models.first().and_then(|model| model_limit(model)) {
+        if let Some(context_window) = limit.get("context").and_then(|value| value.as_u64()) {
+            provider.insert(
+                yaml_key("defaultContextWindow"),
+                Value::from(context_window),
+            );
+        }
+        if let Some(max_tokens) = limit.get("output").and_then(|value| value.as_u64()) {
+            provider.insert(yaml_key("maxTokens"), Value::from(max_tokens));
+        }
+    }
+    provider.insert(yaml_key("models"), Value::Sequence(model_entries));
+    Value::Mapping(provider)
+}
+
+fn direct_deepseek_model_definition(model: &str) -> Value {
+    let mut model_entry = Mapping::new();
+    model_entry.insert(yaml_key("id"), Value::String(model.to_string()));
+    if let Some(limit) = model_limit(model) {
+        if let Some(context_window) = limit.get("context").and_then(|value| value.as_u64()) {
+            model_entry.insert(yaml_key("contextWindow"), Value::from(context_window));
+        }
+        if let Some(max_tokens) = limit.get("output").and_then(|value| value.as_u64()) {
+            model_entry.insert(yaml_key("maxTokens"), Value::from(max_tokens));
+        }
+    }
+    Value::Mapping(model_entry)
+}
+
+fn is_direct_deepseek_model(model: &str) -> bool {
+    matches!(model, "deepseek-v4-flash" | "deepseek-v4-pro")
 }
 
 fn model_definition(model: &str) -> Value {
@@ -280,13 +387,13 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use serde_json::{json, Map, Value};
+    use serde_json::json;
 
     use super::{
         build_deepseek_preview_with_warnings, build_settings_content, dsh_api_key_env,
         dsh_api_key_env_for_endpoint_id,
     };
-    use crate::model_metadata::{model_limit, opencode_model_variants};
+    use crate::model_metadata::model_limit;
     use crate::models::SavedEndpoint;
 
     fn endpoint() -> SavedEndpoint {
@@ -369,39 +476,98 @@ mod tests {
     }
 
     #[test]
-    fn deepseek_v4_models_reuse_opencode_capabilities() {
-        let variants = opencode_model_variants();
-        let content = build_settings_content(
-            Path::new("deepseek-settings-does-not-exist.yaml"),
+    fn deepseek_v4_models_use_the_direct_adapter() {
+        let models = vec![
+            "deepseek-v4-flash".to_string(),
+            "deepseek-v4-pro".to_string(),
+            "example-model".to_string(),
+        ];
+        let (files, warnings) = build_deepseek_preview_with_warnings(
             &endpoint(),
-            "deepseek-v4-flash",
+            &models,
+            Some("deepseek-v4-pro".to_string()),
+            &[(
+                "deepseek-settings".to_string(),
+                PathBuf::from("deepseek-preview-does-not-exist.yaml"),
+                "yaml".to_string(),
+            )],
         )
-        .expect("settings should be generated");
-        let value: serde_json::Value =
-            serde_yaml::from_str(&content).expect("generated settings should be valid YAML");
-        let model = &value["llm-pi-ai"]["providers"]["tma-Example"]["models"][0];
+        .expect("preview should be generated");
+        let value: serde_json::Value = serde_yaml::from_str(&files[0].content)
+            .expect("generated settings should be valid YAML");
+        let direct_models = &value["llm-deepseek"]["models"];
         let limit = model_limit("deepseek-v4-flash").expect("OpenCode should know this model");
-        let expected_reasoning_efforts = variants
-            .get("deepseek-v4-flash")
-            .and_then(Value::as_object)
-            .expect("OpenCode should know this model's variants")
-            .keys()
-            .map(|level| (level.clone(), json!(level)))
-            .collect::<Map<_, _>>();
 
+        assert!(warnings.is_empty());
         assert_eq!(
-            model["contextWindow"], limit["context"],
-            "DSH contextWindow should reuse OpenCode limit.context"
+            value["llm-deepseek"]["apiKeyEnv"],
+            json!("TMA_DSH_646565707365656B2D746573742D303031_API_KEY")
         );
         assert_eq!(
-            model["maxTokens"], limit["output"],
-            "DSH maxTokens should reuse OpenCode limit.output"
+            value["llm-deepseek"]["baseURL"],
+            json!("https://api.example.com/v1")
         );
-        assert_eq!(model["input"], json!(["text"]));
+        assert_eq!(value["llm-deepseek"]["thinking"], json!("enabled"));
+        assert_eq!(value["llm-deepseek"]["reasoningEffort"], json!("high"));
         assert_eq!(
-            model["reasoningEfforts"],
-            Value::Object(expected_reasoning_efforts),
-            "DSH reasoningEfforts should reuse OpenCode variant names"
+            value["llm-deepseek"]["defaultContextWindow"], limit["context"],
+            "the direct adapter should reuse the model context limit"
+        );
+        assert_eq!(
+            value["llm-deepseek"]["maxTokens"], limit["output"],
+            "the direct adapter should reuse the model output limit"
+        );
+        assert_eq!(
+            direct_models,
+            &json!([
+                {
+                    "id": "deepseek-v4-flash",
+                    "contextWindow": 1_000_000,
+                    "maxTokens": 384_000
+                },
+                {
+                    "id": "deepseek-v4-pro",
+                    "contextWindow": 1_000_000,
+                    "maxTokens": 384_000
+                }
+            ])
+        );
+        assert_eq!(
+            value["llm-pi-ai"]["providers"]["tma-Example"]["models"],
+            json!([{ "id": "example-model" }])
+        );
+        assert_eq!(
+            value["agent-default-model"],
+            json!({
+                "provider": "deepseek-official",
+                "model": "deepseek-v4-pro",
+                "reasoningEffort": "high"
+            })
+        );
+    }
+
+    #[test]
+    fn direct_deepseek_models_replace_the_legacy_pi_ai_provider() {
+        let path = temporary_settings_path();
+        fs::write(
+            &path,
+            "llm-pi-ai:\n  providers:\n    tma-Example:\n      models:\n        - id: deepseek-v4-flash\n",
+        )
+        .expect("test settings should be written");
+        let result = build_settings_content(&path, &endpoint(), "deepseek-v4-flash");
+        let _ = fs::remove_file(&path);
+        let content = result.expect("settings should be migrated");
+        let value: serde_json::Value =
+            serde_yaml::from_str(&content).expect("migrated settings should be valid YAML");
+
+        assert!(value["llm-pi-ai"]["providers"].get("tma-Example").is_none());
+        assert_eq!(
+            value["llm-deepseek"]["models"],
+            json!([{
+                "id": "deepseek-v4-flash",
+                "contextWindow": 1_000_000,
+                "maxTokens": 384_000
+            }])
         );
     }
 
