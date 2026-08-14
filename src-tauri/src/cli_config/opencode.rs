@@ -275,7 +275,9 @@ mod tests {
         );
 
         assert_eq!(
-            entries.get("claude-opus-4-6").and_then(|entry| entry.get("limit")),
+            entries
+                .get("claude-opus-4-6")
+                .and_then(|entry| entry.get("limit")),
             Some(&json!({ "context": 1000000, "output": 128000 }))
         );
     }
