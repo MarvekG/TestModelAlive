@@ -387,15 +387,23 @@ fn default_opencode_model_variants() -> BTreeMap<String, Value> {
         ("deepseek-v4-flash", deepseek_v4_variants),
         ("grok-4.5", generic_reasoning_variants.clone()),
         ("grok-4.6", generic_reasoning_variants.clone()),
+        ("hy3", generic_reasoning_variants.clone()),
+        ("laguna-s-2.1", generic_reasoning_variants.clone()),
+        ("ling-3.0-flash", generic_reasoning_variants.clone()),
+        ("ling-3.0-tiny", empty_variants.clone()),
         ("glm-5.2", glm_variants.clone()),
         ("glm-5.1", empty_variants.clone()),
         ("glm-5", empty_variants.clone()),
         ("kimi-k2.7-code", empty_variants.clone()),
         ("kimi-k2.6", empty_variants.clone()),
         ("kimi-k2.5", empty_variants.clone()),
+        ("mimo-v2.5", empty_variants.clone()),
         ("minimax-m3", minimax_m3_variants),
         ("minimax-m2.7", empty_variants.clone()),
         ("minimax-m2.5", empty_variants.clone()),
+        ("nemotron-3-ultra", empty_variants.clone()),
+        ("nemotron-3.5-lightning", empty_variants.clone()),
+        ("north-mini-code", north_mini_code_variants.clone()),
         ("qwen3.7-max", empty_variants.clone()),
         ("qwen3.7-plus", empty_variants.clone()),
         ("qwen3.6-plus", empty_variants.clone()),
@@ -523,4 +531,37 @@ fn is_valid_opencode_sdk_package(package: &str) -> bool {
 #[allow(dead_code)]
 fn _path_text(path: PathBuf) -> String {
     path.to_string_lossy().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::default_opencode_model_variants;
+    use serde_json::json;
+
+    #[test]
+    fn requested_models_use_advertised_reasoning_variants() {
+        let variants = default_opencode_model_variants();
+        let generic = json!({
+            "low": { "reasoningEffort": "low" },
+            "medium": { "reasoningEffort": "medium" },
+            "high": { "reasoningEffort": "high" }
+        });
+        let north = json!({
+            "none": { "reasoningEffort": "none" },
+            "high": { "reasoningEffort": "high" }
+        });
+
+        for model in ["hy3", "laguna-s-2.1", "ling-3.0-flash"] {
+            assert_eq!(variants.get(model), Some(&generic));
+        }
+        assert_eq!(variants.get("north-mini-code"), Some(&north));
+        for model in [
+            "ling-3.0-tiny",
+            "mimo-v2.5",
+            "nemotron-3-ultra",
+            "nemotron-3.5-lightning",
+        ] {
+            assert_eq!(variants.get(model), Some(&json!({})));
+        }
+    }
 }
