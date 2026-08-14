@@ -169,6 +169,8 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
           <button id="open-test-settings" class="secondary">${t("testSettings")}</button>
           <button id="apply-codex" class="secondary hidden">${t("applyToCodex")}</button>
           <button id="apply-deepseek" class="secondary hidden">${t("applyToDeepSeek")}</button>
+          <button id="restore-official-deepseek" class="secondary hidden">${t("restoreOfficialDeepSeekConfig")}</button>
+          <button id="remove-deepseek-provider" class="danger hidden">${t("removeDeepSeekProvider")}</button>
           <button id="apply-opencode" class="secondary hidden">${t("applyToOpenCode")}</button>
           <button id="remove-opencode" class="secondary hidden">${t("removeFromOpenCode")}</button>
           <button id="apply-claude" class="secondary hidden">${t("applyToClaude")}</button>

@@ -61,6 +61,42 @@ pub fn build_remove_opencode_config_preview(
 }
 
 #[tauri::command]
+pub fn build_restore_official_deepseek_config_preview(
+    _app: tauri::AppHandle,
+    endpoint: SavedEndpoint,
+) -> Result<CliConfigPreview, String> {
+    if endpoint.endpoint_type != "deepseek" {
+        return Err("DeepSeek Harness config requires a deepseek endpoint".to_string());
+    }
+    let target = CliConfigTargetKind::Deepseek;
+    let files = cli_target_files(&target)?;
+    Ok(CliConfigPreview {
+        endpoint_type: endpoint.endpoint_type.clone(),
+        target: target.as_str().to_string(),
+        files: deepseek::build_restore_official_deepseek_preview(&files)?,
+        warnings: Vec::new(),
+    })
+}
+
+#[tauri::command]
+pub fn build_remove_deepseek_provider_preview(
+    _app: tauri::AppHandle,
+    endpoint: SavedEndpoint,
+) -> Result<CliConfigPreview, String> {
+    if endpoint.endpoint_type != "deepseek" {
+        return Err("DeepSeek Harness config requires a deepseek endpoint".to_string());
+    }
+    let target = CliConfigTargetKind::Deepseek;
+    let files = cli_target_files(&target)?;
+    Ok(CliConfigPreview {
+        endpoint_type: endpoint.endpoint_type.clone(),
+        target: target.as_str().to_string(),
+        files: deepseek::build_remove_deepseek_provider_preview(&endpoint, &files)?,
+        warnings: Vec::new(),
+    })
+}
+
+#[tauri::command]
 pub fn apply_cli_config(
     app: tauri::AppHandle,
     endpoint: SavedEndpoint,

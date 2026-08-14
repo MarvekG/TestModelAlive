@@ -2,8 +2,8 @@ import { Channel } from "@tauri-apps/api/core";
 import { translate, type Language } from "../i18n";
 import { addEndpointApi, loadEndpointsApi, deleteEndpointApi } from "../api/endpoints";
 import { fetchModelsApi, loadTestSettingsApi, saveTestSettingsApi, stopTestApi, testCliWithRealConfigApi, testModelsApi } from "../api/testModels";
-import { applyCliConfigApi, buildCliConfigPreviewApi, buildRemoveOpenCodeConfigPreviewApi, loadCliConfigBaselineItemsApi, restoreOriginalCliConfigApi } from "../api/cliConfig";
-import type { CliConfigTargetKind, SavedEndpoint, TestMessage, TestResult, TestSettings } from "../types";
+import { applyCliConfigApi, buildCliConfigPreviewApi, buildRemoveDeepSeekProviderPreviewApi, buildRemoveOpenCodeConfigPreviewApi, buildRestoreOfficialDeepSeekConfigPreviewApi, loadCliConfigBaselineItemsApi, restoreOriginalCliConfigApi } from "../api/cliConfig";
+import type { CliConfigPreview, CliConfigTargetKind, SavedEndpoint, TestMessage, TestResult, TestSettings } from "../types";
 import { createInitialState } from "../state";
 import { bind, setBusy } from "../utils/dom";
 import { maskKey } from "../utils/mask";
@@ -92,6 +92,8 @@ export function initApp() {
     bind("open-test-settings", "click", () => openTestSettingsDialog(elements, successKeyword, testPrompt));
     bind("apply-codex", "click", () => applyCliConfig("codex"));
     bind("apply-deepseek", "click", () => applyCliConfig("deepseek"));
+    bind("restore-official-deepseek", "click", restoreOfficialDeepSeekConfig);
+    bind("remove-deepseek-provider", "click", removeDeepSeekProvider);
     bind("apply-opencode", "click", () => applyCliConfig("opencode"));
     bind("remove-opencode", "click", removeOpenCodeConfig);
     bind("apply-claude", "click", () => applyCliConfig("claude"));
@@ -253,6 +255,8 @@ export function initApp() {
     elements.append1mLabel.classList.toggle("hidden", endpoint.type !== "claude");
     elements.applyCodex.classList.toggle("hidden", endpoint.type !== "codex");
     elements.applyDeepseek.classList.toggle("hidden", endpoint.type !== "deepseek");
+    elements.restoreOfficialDeepseek.classList.toggle("hidden", endpoint.type !== "deepseek");
+    elements.removeDeepseekProvider.classList.toggle("hidden", endpoint.type !== "deepseek");
     elements.applyOpenCode.classList.toggle("hidden", endpoint.type !== "opencode");
     elements.removeOpenCode.classList.toggle("hidden", endpoint.type !== "opencode");
     elements.applyClaude.classList.toggle("hidden", endpoint.type !== "claude");
@@ -428,6 +432,46 @@ export function initApp() {
       await showAlert(t("removeFromOpenCode"), t("removedFromOpenCode"), result.results.map((item) => item.path).join("\n"));
     } catch (error) {
       alertError(t("removeOpenCodeFailed"), error);
+    } finally {
+      setApplyBusy(false);
+    }
+  }
+
+  async function restoreOfficialDeepSeekConfig() {
+    await applyDeepSeekConfigOperation(
+      buildRestoreOfficialDeepSeekConfigPreviewApi,
+      t("restoreOfficialDeepSeekConfig"),
+      t("restoredOfficialDeepSeekConfig"),
+    );
+  }
+
+  async function removeDeepSeekProvider() {
+    await applyDeepSeekConfigOperation(
+      buildRemoveDeepSeekProviderPreviewApi,
+      t("removeDeepSeekProvider"),
+      t("removedDeepSeekProvider"),
+    );
+  }
+
+  async function applyDeepSeekConfigOperation(
+    buildPreview: (endpoint: SavedEndpoint) => Promise<CliConfigPreview>,
+    title: string,
+    success: string,
+  ) {
+    if (!testEndpoint || testEndpoint.type !== "deepseek") return;
+    if (testRunning) {
+      await showAlert(title, t("testStillRunning"));
+      return;
+    }
+    setApplyBusy(true);
+    try {
+      const preview = await buildPreview(testEndpoint);
+      const editedConfig = await showCliConfigPreviewDialog({ preview, models: testEndpoint.models, t, isModalOpen: isTestPanelOpen, showAlert, title });
+      if (!editedConfig) return;
+      const result = await applyCliConfigApi(testEndpoint, "deepseek", editedConfig);
+      await showAlert(title, success, result.results.map((item) => item.path).join("\n"));
+    } catch (error) {
+      alertError(title, error);
     } finally {
       setApplyBusy(false);
     }
@@ -666,6 +710,8 @@ export function initApp() {
   function setApplyBusy(busy: boolean) {
     elements.applyCodex.disabled = busy;
     elements.applyDeepseek.disabled = busy;
+    elements.restoreOfficialDeepseek.disabled = busy;
+    elements.removeDeepseekProvider.disabled = busy;
     elements.applyOpenCode.disabled = busy;
     elements.removeOpenCode.disabled = busy;
     elements.applyClaude.disabled = busy;

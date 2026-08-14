@@ -104,6 +104,88 @@ pub(crate) fn build_test_settings_content(
     .0)
 }
 
+pub(crate) fn build_restore_official_deepseek_preview(
+    files: &[(String, PathBuf, String)],
+) -> Result<Vec<CliConfigPreviewFile>, String> {
+    build_deepseek_operation_preview(files, restore_official_settings_content)
+}
+
+pub(crate) fn build_remove_deepseek_provider_preview(
+    endpoint: &SavedEndpoint,
+    files: &[(String, PathBuf, String)],
+) -> Result<Vec<CliConfigPreviewFile>, String> {
+    build_deepseek_operation_preview(files, |path| {
+        remove_deepseek_provider_settings_content(path, endpoint)
+    })
+}
+
+fn build_deepseek_operation_preview<F>(
+    files: &[(String, PathBuf, String)],
+    mut build_settings: F,
+) -> Result<Vec<CliConfigPreviewFile>, String>
+where
+    F: FnMut(&Path) -> Result<String, String>,
+{
+    let mut output = Vec::new();
+    for (file_id, path, language) in files {
+        let content = match file_id.as_str() {
+            "deepseek-settings" => build_settings(path)?,
+            "deepseek-credentials" => serialize_yaml_mapping(&read_yaml_mapping(path)?)?,
+            _ => {
+                return Err(format!(
+                    "unexpected DeepSeek Harness config file: {file_id}"
+                ))
+            }
+        };
+        output.push(preview_file(file_id, path, language, content));
+    }
+    Ok(output)
+}
+
+fn restore_official_settings_content(path: &Path) -> Result<String, String> {
+    let mut root = read_yaml_mapping(path)?;
+    let removed_provider = root.remove(&yaml_key("llm-deepseek")).is_some();
+    let removed_default = root.remove(&yaml_key("agent-default-model")).is_some();
+    if !removed_provider && !removed_default {
+        return Err(
+            "DeepSeek Harness has no custom llm-deepseek configuration to restore".to_string(),
+        );
+    }
+    serialize_yaml_mapping(&root)
+}
+
+fn remove_deepseek_provider_settings_content(
+    path: &Path,
+    endpoint: &SavedEndpoint,
+) -> Result<String, String> {
+    let mut root = read_yaml_mapping(path)?;
+    let provider_name = dsh_provider_name(endpoint);
+    if !remove_pi_ai_provider(&mut root, &provider_name)? {
+        return Err(format!(
+            "No DeepSeek Harness provider named {provider_name} was found"
+        ));
+    }
+    remove_default_model_for_provider(&mut root, &provider_name);
+    serialize_yaml_mapping(&root)
+}
+
+fn remove_default_model_for_provider(root: &mut Mapping, provider_name: &str) -> bool {
+    let Some(default_model) = root
+        .get(&yaml_key("agent-default-model"))
+        .and_then(Value::as_mapping)
+    else {
+        return false;
+    };
+    let is_provider = default_model
+        .get(&yaml_key("provider"))
+        .and_then(Value::as_str)
+        == Some(provider_name);
+    if is_provider {
+        root.remove(&yaml_key("agent-default-model"));
+    }
+    is_provider
+}
+
 fn build_settings_content_with_overwrite(
     path: &Path,
     endpoint: &SavedEndpoint,
@@ -463,8 +545,9 @@ mod tests {
 
     use super::{
         build_deepseek_preview_with_warnings, build_settings_content, build_test_settings_content,
-        dsh_api_key_env, dsh_api_key_env_for_endpoint_id, DSH_TEST_MAX_TOKENS,
-        DSH_THIRD_PARTY_MAX_TOKENS,
+        dsh_api_key_env, dsh_api_key_env_for_endpoint_id,
+        remove_deepseek_provider_settings_content, restore_official_settings_content,
+        DSH_TEST_MAX_TOKENS, DSH_THIRD_PARTY_MAX_TOKENS,
     };
     use crate::model_metadata::model_limit;
     use crate::models::SavedEndpoint;
@@ -667,6 +750,51 @@ mod tests {
             value["llm-deepseek"]["models"][0]["maxTokens"],
             json!(DSH_THIRD_PARTY_MAX_TOKENS)
         );
+    }
+
+    #[test]
+    fn restore_official_config_removes_deepseek_and_default_overrides() {
+        let path = temporary_settings_path();
+        fs::write(
+            &path,
+            "llm-pi-ai:\n  providers:\n    existing:\n      api: openai-completions\nllm-deepseek:\n  apiKeyEnv: TMA_DSH_API_KEY\nagent-default-model:\n  provider: tma-Example\n  model: example-model\n",
+        )
+        .expect("test settings should be written");
+        let result = restore_official_settings_content(&path);
+        let _ = fs::remove_file(&path);
+        let content = result.expect("official settings should be restored");
+        let value: serde_json::Value =
+            serde_yaml::from_str(&content).expect("restored settings should be valid YAML");
+
+        assert!(value.get("llm-deepseek").is_none());
+        assert!(value.get("agent-default-model").is_none());
+        assert_eq!(
+            value["llm-pi-ai"]["providers"]["existing"]["api"],
+            json!("openai-completions")
+        );
+    }
+
+    #[test]
+    fn remove_deepseek_provider_preserves_other_configuration() {
+        let path = temporary_settings_path();
+        fs::write(
+            &path,
+            "llm-pi-ai:\n  providers:\n    tma-Example:\n      api: openai-completions\n    existing:\n      api: openai-completions\nllm-deepseek:\n  apiKeyEnv: TMA_DSH_API_KEY\nagent-default-model:\n  provider: tma-Example\n  model: example-model\n",
+        )
+        .expect("test settings should be written");
+        let result = remove_deepseek_provider_settings_content(&path, &endpoint());
+        let _ = fs::remove_file(&path);
+        let content = result.expect("provider should be removed");
+        let value: serde_json::Value =
+            serde_yaml::from_str(&content).expect("updated settings should be valid YAML");
+
+        assert!(value["llm-pi-ai"]["providers"].get("tma-Example").is_none());
+        assert_eq!(
+            value["llm-pi-ai"]["providers"]["existing"]["api"],
+            json!("openai-completions")
+        );
+        assert_eq!(value["llm-deepseek"]["apiKeyEnv"], json!("TMA_DSH_API_KEY"));
+        assert!(value.get("agent-default-model").is_none());
     }
 
     #[test]

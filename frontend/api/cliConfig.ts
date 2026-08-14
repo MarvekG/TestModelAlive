@@ -35,6 +35,14 @@ export function buildRemoveOpenCodeConfigPreviewApi(endpoint: SavedEndpoint) {
   return invokeCommand<CliConfigPreview>("build_remove_opencode_config_preview", { endpoint });
 }
 
+export function buildRestoreOfficialDeepSeekConfigPreviewApi(endpoint: SavedEndpoint) {
+  return invokeCommand<CliConfigPreview>("build_restore_official_deepseek_config_preview", { endpoint });
+}
+
+export function buildRemoveDeepSeekProviderPreviewApi(endpoint: SavedEndpoint) {
+  return invokeCommand<CliConfigPreview>("build_remove_deepseek_provider_preview", { endpoint });
+}
+
 export function applyCliConfigApi(endpoint: SavedEndpoint, target: CliConfigTargetKind, editedConfig: EditedCliConfig) {
   return invokeCommand<ApplyCliConfigResult>("apply_cli_config", { endpoint, target, editedConfig });
 }

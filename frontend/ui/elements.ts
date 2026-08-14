@@ -27,6 +27,8 @@ export function getElements() {
     stopTest: byId<HTMLButtonElement>("stop-test"),
     applyCodex: byId<HTMLButtonElement>("apply-codex"),
     applyDeepseek: byId<HTMLButtonElement>("apply-deepseek"),
+    restoreOfficialDeepseek: byId<HTMLButtonElement>("restore-official-deepseek"),
+    removeDeepseekProvider: byId<HTMLButtonElement>("remove-deepseek-provider"),
     applyOpenCode: byId<HTMLButtonElement>("apply-opencode"),
     removeOpenCode: byId<HTMLButtonElement>("remove-opencode"),
     applyClaude: byId<HTMLButtonElement>("apply-claude"),
