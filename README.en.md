@@ -130,7 +130,8 @@ The success condition is configurable:
 - The app merges DSH's `settings.yaml` and `.credentials.yaml` under `DSH_HOME` when set, or under the default `~/.dsh/` directory.
 - `deepseek-v4-flash` and `deepseek-v4-pro` remain in the OpenAI-compatible `tma-<endpoint name>` provider by default. `llm-pi-ai` does not yet support DeepSeek models through third-party endpoints. To use either as the default model, select "Split DeepSeek V4 models into llm-deepseek" in the apply options to write them to the native `llm-deepseek` configuration and use `deepseek-official` as their `agent-default-model` provider. Without this option, DeepSeek V4 models cannot be the default model.
 - **Splitting overwrites the existing official DeepSeek configuration in `llm-deepseek`.**
-- The app reuses embedded context-window values without writing a default maximum-output value. `llm-pi-ai` models also receive converted OpenCode reasoning levels; unknown models retain DSH defaults.
+- When splitting, choose the maximum output: the official endpoint default is `384000`, and `131072` is available for third-party endpoints. Isolated tests always use `131072` and do not read existing DSH configuration.
+- The app reuses embedded context-window and maximum-output values. `llm-pi-ai` models also receive converted OpenCode reasoning levels; unknown models retain DSH defaults.
 - Model metadata is embedded in `src-tauri/src/model_metadata.json`, not written to `~/.TestModelAlive/settings.json`; startup automatically removes the legacy `opencode_model_variants` field.
 - DeepSeek Harness is currently in developer preview and may introduce breaking configuration changes. Run "Test Current Config" after upgrading DSH.
 

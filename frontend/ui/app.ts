@@ -284,7 +284,8 @@ export function initApp() {
       const defaultModel = options?.defaultModel ?? null;
       const timeouts = options?.timeouts ?? null;
       const useNativeDeepSeekProvider = options?.useNativeDeepSeekProvider ?? false;
-      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel, timeouts, useNativeDeepSeekProvider);
+      const deepseekMaxTokens = options?.deepseekMaxTokens ?? null;
+      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel, timeouts, useNativeDeepSeekProvider, deepseekMaxTokens);
       if (!(await confirmCliConfigWarnings(preview))) return;
       const editedConfig = await showCliConfigPreviewDialog({ preview, models, t, isModalOpen: isTestPanelOpen, showAlert });
       if (!editedConfig) return;
@@ -358,7 +359,7 @@ export function initApp() {
         t,
         isModalOpen: isTestPanelOpen,
         showAlert,
-      }).then((options) => (options ? { ...options, useNativeDeepSeekProvider: false } : null));
+      }).then((options) => (options ? { ...options, useNativeDeepSeekProvider: false, deepseekMaxTokens: null } : null));
     }
     if (target === "deepseek") {
       const options = await chooseDeepSeekApplyOptions({ models, t, isModalOpen: isTestPanelOpen, showAlert });

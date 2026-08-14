@@ -209,7 +209,7 @@ export function chooseDeepSeekApplyOptions(options: {
   t: (key: string) => string;
   isModalOpen: () => boolean;
   showAlert: (title: string, message: string) => Promise<void>;
-}): Promise<{ defaultModel: string; useNativeDeepSeekProvider: boolean } | null> {
+}): Promise<{ defaultModel: string; useNativeDeepSeekProvider: boolean; deepseekMaxTokens: number | null } | null> {
   const { models, t, isModalOpen, showAlert } = options;
   const isNativeDeepSeekModel = (model: string) => model === "deepseek-v4-flash" || model === "deepseek-v4-pro";
   const canUseNativeDeepSeekProvider = models.some(isNativeDeepSeekModel);
@@ -236,6 +236,14 @@ export function chooseDeepSeekApplyOptions(options: {
             ${escapeHtml(t("deepSeekNativeProviderOption"))}
           </label>
           <small>${escapeHtml(t("deepSeekNativeProviderReason"))} <strong>${escapeHtml(t("deepSeekNativeProviderWarning"))}</strong></small>
+          <label>
+            <span>${escapeHtml(t("deepSeekMaxTokens"))}</span>
+            <select data-field="deepseekMaxTokens" class="model-select" disabled>
+              <option value="384000">${escapeHtml(t("deepSeekMaxTokensOfficial"))}</option>
+              <option value="131072">${escapeHtml(t("deepSeekMaxTokensThirdParty"))}</option>
+            </select>
+          </label>
+          <small>${escapeHtml(t("deepSeekMaxTokensHint"))}</small>
         </section>` : ""}
         <div class="actions choice-actions">
           <button data-action="confirm">${escapeHtml(t("confirm"))}</button>
@@ -245,7 +253,8 @@ export function chooseDeepSeekApplyOptions(options: {
     `;
     const modelSelect = overlay.querySelector<HTMLSelectElement>("select.model-select");
     const useNativeDeepSeekProvider = overlay.querySelector<HTMLInputElement>('input[data-field="useNativeDeepSeekProvider"]');
-    const finish = (value: { defaultModel: string; useNativeDeepSeekProvider: boolean } | null) => {
+    const outputTokens = overlay.querySelector<HTMLSelectElement>('select[data-field="deepseekMaxTokens"]');
+    const finish = (value: { defaultModel: string; useNativeDeepSeekProvider: boolean; deepseekMaxTokens: number | null } | null) => {
       document.removeEventListener("keydown", onKeyDown);
       overlay.remove();
       document.body.classList.toggle("modal-open", isModalOpen());
@@ -264,6 +273,7 @@ export function chooseDeepSeekApplyOptions(options: {
         if (fallback) modelSelect.value = fallback;
       }
       if (modelSelect) modelSelect.disabled = !nativeProviderEnabled && !hasNonNativeDefaultModel;
+      if (outputTokens) outputTokens.disabled = !nativeProviderEnabled;
     };
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) finish(null);
@@ -276,7 +286,11 @@ export function chooseDeepSeekApplyOptions(options: {
             await showAlert(t("deepSeekApplyOptionsTitle"), t("deepSeekNativeProviderRequired"));
             return;
           }
-          finish({ defaultModel: modelSelect.value, useNativeDeepSeekProvider: useNativeDeepSeekProvider?.checked ?? false });
+          finish({
+            defaultModel: modelSelect.value,
+            useNativeDeepSeekProvider: useNativeDeepSeekProvider?.checked ?? false,
+            deepseekMaxTokens: outputTokens ? Number(outputTokens.value) : null,
+          });
         }
         else finish(null);
       });

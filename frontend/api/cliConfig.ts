@@ -18,6 +18,7 @@ export function buildCliConfigPreviewApi(
   defaultModel: string | null = null,
   timeouts: OpenCodeTimeoutOptions | null = null,
   useNativeDeepSeekProvider = false,
+  deepseekMaxTokens: number | null = null,
 ) {
   return invokeCommand<CliConfigPreview>("build_cli_config_preview", {
     endpoint,
@@ -26,6 +27,7 @@ export function buildCliConfigPreviewApi(
     defaultModel,
     timeouts,
     useNativeDeepseekProvider: useNativeDeepSeekProvider,
+    deepseekMaxTokens,
   });
 }
 

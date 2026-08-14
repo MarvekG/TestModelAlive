@@ -9,6 +9,9 @@ use crate::models::SavedEndpoint;
 use super::preview::preview_file;
 
 const DSH_DEEPSEEK_PROVIDER: &str = "deepseek-official";
+const DSH_OFFICIAL_MAX_TOKENS: u64 = 384_000;
+const DSH_THIRD_PARTY_MAX_TOKENS: u64 = 131_072;
+const DSH_TEST_MAX_TOKENS: u64 = DSH_THIRD_PARTY_MAX_TOKENS;
 
 pub(crate) fn dsh_provider_name(endpoint: &SavedEndpoint) -> String {
     dsh_provider_name_for_endpoint_name(&endpoint.name)
@@ -40,8 +43,10 @@ pub(crate) fn build_deepseek_preview_with_warnings(
     default_model: Option<String>,
     files: &[(String, PathBuf, String)],
     use_native_deepseek_provider: bool,
+    deepseek_max_tokens: Option<u64>,
 ) -> Result<(Vec<CliConfigPreviewFile>, Vec<CliConfigPreviewWarning>), String> {
     let default_model = select_default_model(models, default_model, use_native_deepseek_provider)?;
+    let deepseek_max_tokens = select_deepseek_max_tokens(deepseek_max_tokens)?;
     let mut output = Vec::new();
     let mut warnings = Vec::new();
     for (file_id, path, language) in files {
@@ -53,6 +58,7 @@ pub(crate) fn build_deepseek_preview_with_warnings(
                     models,
                     &default_model,
                     use_native_deepseek_provider,
+                    Some(deepseek_max_tokens),
                 )?;
                 for provider in overwritten_providers {
                     warnings.push(CliConfigPreviewWarning::DeepseekProviderOverwrite { provider });
@@ -78,7 +84,7 @@ pub(crate) fn build_settings_content(
     model: &str,
 ) -> Result<String, String> {
     let models = vec![model.to_string()];
-    Ok(build_settings_content_with_overwrite(path, endpoint, &models, model, false)?.0)
+    Ok(build_settings_content_with_overwrite(path, endpoint, &models, model, false, None)?.0)
 }
 
 pub(crate) fn build_test_settings_content(
@@ -93,6 +99,7 @@ pub(crate) fn build_test_settings_content(
         &models,
         model,
         is_direct_deepseek_model(model),
+        Some(DSH_TEST_MAX_TOKENS),
     )?
     .0)
 }
@@ -103,6 +110,7 @@ fn build_settings_content_with_overwrite(
     models: &[String],
     default_model: &str,
     use_native_deepseek_provider: bool,
+    max_tokens_cap: Option<u64>,
 ) -> Result<(String, Vec<String>), String> {
     let mut root = read_yaml_mapping(path)?;
     let (direct_models, pi_models) = if use_native_deepseek_provider {
@@ -142,7 +150,7 @@ fn build_settings_content_with_overwrite(
         }
         root.insert(
             yaml_key("llm-deepseek"),
-            direct_deepseek_definition(endpoint, &direct_models),
+            direct_deepseek_definition(endpoint, &direct_models, max_tokens_cap),
         );
     }
 
@@ -218,10 +226,14 @@ fn provider_definition(endpoint: &SavedEndpoint, models: &[String]) -> Value {
     Value::Mapping(provider)
 }
 
-fn direct_deepseek_definition(endpoint: &SavedEndpoint, models: &[String]) -> Value {
+fn direct_deepseek_definition(
+    endpoint: &SavedEndpoint,
+    models: &[String],
+    max_tokens_cap: Option<u64>,
+) -> Value {
     let model_entries = models
         .iter()
-        .map(|model| direct_deepseek_model_definition(model))
+        .map(|model| direct_deepseek_model_definition(model, max_tokens_cap))
         .collect();
     let mut provider = Mapping::new();
     provider.insert(
@@ -244,20 +256,36 @@ fn direct_deepseek_definition(endpoint: &SavedEndpoint, models: &[String]) -> Va
                 Value::from(context_window),
             );
         }
+        if let Some(max_tokens) = limit.get("output").and_then(|value| value.as_u64()) {
+            provider.insert(
+                yaml_key("maxTokens"),
+                Value::from(limit_output_tokens(max_tokens, max_tokens_cap)),
+            );
+        }
     }
     provider.insert(yaml_key("models"), Value::Sequence(model_entries));
     Value::Mapping(provider)
 }
 
-fn direct_deepseek_model_definition(model: &str) -> Value {
+fn direct_deepseek_model_definition(model: &str, max_tokens_cap: Option<u64>) -> Value {
     let mut model_entry = Mapping::new();
     model_entry.insert(yaml_key("id"), Value::String(model.to_string()));
     if let Some(limit) = model_limit(model) {
         if let Some(context_window) = limit.get("context").and_then(|value| value.as_u64()) {
             model_entry.insert(yaml_key("contextWindow"), Value::from(context_window));
         }
+        if let Some(max_tokens) = limit.get("output").and_then(|value| value.as_u64()) {
+            model_entry.insert(
+                yaml_key("maxTokens"),
+                Value::from(limit_output_tokens(max_tokens, max_tokens_cap)),
+            );
+        }
     }
     Value::Mapping(model_entry)
+}
+
+fn limit_output_tokens(max_tokens: u64, max_tokens_cap: Option<u64>) -> u64 {
+    max_tokens_cap.map_or(max_tokens, |cap| max_tokens.min(cap))
 }
 
 fn is_direct_deepseek_model(model: &str) -> bool {
@@ -271,6 +299,9 @@ fn model_definition(model: &str) -> Value {
         // Reuse the model capabilities from OpenCode, but emit DSH's YAML schema.
         if let Some(context_window) = profile.context_window {
             model_entry.insert(yaml_key("contextWindow"), Value::from(context_window));
+        }
+        if let Some(max_tokens) = profile.max_tokens {
+            model_entry.insert(yaml_key("maxTokens"), Value::from(max_tokens));
         }
         model_entry.insert(
             yaml_key("input"),
@@ -298,15 +329,21 @@ fn model_definition(model: &str) -> Value {
 
 struct ModelProfile {
     context_window: Option<u64>,
+    max_tokens: Option<u64>,
     input: Vec<String>,
     reasoning_efforts: Vec<(String, Option<String>)>,
 }
 
 fn known_model_profile(model: &str) -> Option<ModelProfile> {
-    let context_window = model_limit(model)
-        .and_then(|limit| limit.get("context")?.as_u64())
-        .map(Some)
-        .unwrap_or(None);
+    let (context_window, max_tokens) = model_limit(model)
+        .and_then(|limit| {
+            Some((
+                limit.get("context")?.as_u64()?,
+                limit.get("output")?.as_u64()?,
+            ))
+        })
+        .map(|(context_window, max_tokens)| (Some(context_window), Some(max_tokens)))
+        .unwrap_or((None, None));
     let mut reasoning_efforts: Vec<(String, Option<String>)> = opencode_model_variants()
         .get(model)
         .and_then(serde_json::Value::as_object)
@@ -326,11 +363,12 @@ fn known_model_profile(model: &str) -> Option<ModelProfile> {
     if reasoning_efforts.iter().all(|(level, _)| level == "off") {
         reasoning_efforts.clear();
     }
-    if context_window.is_none() && reasoning_efforts.is_empty() {
+    if context_window.is_none() && max_tokens.is_none() && reasoning_efforts.is_empty() {
         return None;
     }
     Some(ModelProfile {
         context_window,
+        max_tokens,
         input: dsh_default_input().to_vec(),
         reasoning_efforts,
     })
@@ -353,6 +391,18 @@ fn select_default_model(
         );
     }
     Ok(default_model)
+}
+
+fn select_deepseek_max_tokens(max_tokens: Option<u64>) -> Result<u64, String> {
+    let max_tokens = max_tokens.unwrap_or(DSH_OFFICIAL_MAX_TOKENS);
+    match max_tokens {
+        DSH_OFFICIAL_MAX_TOKENS | DSH_THIRD_PARTY_MAX_TOKENS => {
+            Ok(max_tokens)
+        }
+        max_tokens => Err(format!(
+            "DeepSeek maximum output tokens must be {DSH_OFFICIAL_MAX_TOKENS} or {DSH_THIRD_PARTY_MAX_TOKENS}, got {max_tokens}"
+        )),
+    }
 }
 
 pub(crate) fn parse_yaml_mapping(path: &Path, text: &str) -> Result<Mapping, String> {
@@ -412,8 +462,9 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        build_deepseek_preview_with_warnings, build_settings_content, dsh_api_key_env,
-        dsh_api_key_env_for_endpoint_id,
+        build_deepseek_preview_with_warnings, build_settings_content, build_test_settings_content,
+        dsh_api_key_env, dsh_api_key_env_for_endpoint_id, DSH_TEST_MAX_TOKENS,
+        DSH_THIRD_PARTY_MAX_TOKENS,
     };
     use crate::model_metadata::model_limit;
     use crate::models::SavedEndpoint;
@@ -485,6 +536,7 @@ mod tests {
                 "yaml".to_string(),
             )],
             false,
+            None,
         )
         .expect("preview should be generated");
         let value: serde_json::Value =
@@ -515,6 +567,7 @@ mod tests {
                 "yaml".to_string(),
             )],
             true,
+            None,
         )
         .expect("preview should be generated");
         let value: serde_json::Value = serde_yaml::from_str(&files[0].content)
@@ -537,17 +590,19 @@ mod tests {
             value["llm-deepseek"]["defaultContextWindow"], limit["context"],
             "the direct adapter should reuse the model context limit"
         );
-        assert!(value["llm-deepseek"].get("maxTokens").is_none());
+        assert_eq!(value["llm-deepseek"]["maxTokens"], limit["output"]);
         assert_eq!(
             direct_models,
             &json!([
                 {
                     "id": "deepseek-v4-flash",
-                    "contextWindow": 1_000_000
+                    "contextWindow": 1_000_000,
+                    "maxTokens": 384_000
                 },
                 {
                     "id": "deepseek-v4-pro",
-                    "contextWindow": 1_000_000
+                    "contextWindow": 1_000_000,
+                    "maxTokens": 384_000
                 }
             ])
         );
@@ -566,6 +621,55 @@ mod tests {
     }
 
     #[test]
+    fn isolated_deepseek_v4_test_limits_output_tokens() {
+        let content = build_test_settings_content(
+            Path::new("deepseek-settings-does-not-exist.yaml"),
+            &endpoint(),
+            "deepseek-v4-flash",
+        )
+        .expect("test settings should be generated");
+        let value: serde_json::Value =
+            serde_yaml::from_str(&content).expect("test settings should be valid YAML");
+
+        assert_eq!(
+            value["llm-deepseek"]["maxTokens"],
+            json!(DSH_TEST_MAX_TOKENS)
+        );
+        assert_eq!(
+            value["llm-deepseek"]["models"][0]["maxTokens"],
+            json!(DSH_TEST_MAX_TOKENS)
+        );
+    }
+
+    #[test]
+    fn direct_deepseek_preview_supports_the_third_party_limit() {
+        let (files, _) = build_deepseek_preview_with_warnings(
+            &endpoint(),
+            &["deepseek-v4-flash".to_string()],
+            Some("deepseek-v4-flash".to_string()),
+            &[(
+                "deepseek-settings".to_string(),
+                PathBuf::from("deepseek-preview-does-not-exist.yaml"),
+                "yaml".to_string(),
+            )],
+            true,
+            Some(DSH_THIRD_PARTY_MAX_TOKENS),
+        )
+        .expect("preview should be generated");
+        let value: serde_json::Value =
+            serde_yaml::from_str(&files[0].content).expect("preview should be valid YAML");
+
+        assert_eq!(
+            value["llm-deepseek"]["maxTokens"],
+            json!(DSH_THIRD_PARTY_MAX_TOKENS)
+        );
+        assert_eq!(
+            value["llm-deepseek"]["models"][0]["maxTokens"],
+            json!(DSH_THIRD_PARTY_MAX_TOKENS)
+        );
+    }
+
+    #[test]
     fn deepseek_v4_models_stay_in_pi_ai_without_native_selection() {
         let (files, warnings) = build_deepseek_preview_with_warnings(
             &endpoint(),
@@ -577,6 +681,7 @@ mod tests {
                 "yaml".to_string(),
             )],
             false,
+            None,
         )
         .expect("preview should be generated");
         let value: serde_json::Value = serde_yaml::from_str(&files[0].content)
@@ -589,6 +694,7 @@ mod tests {
                 {
                     "id": "deepseek-v4-flash",
                     "contextWindow": 1_000_000,
+                    "maxTokens": 384_000,
                     "input": ["text"],
                     "reasoningEfforts": { "low": "low", "medium": "medium", "high": "high", "max": "max" }
                 },
@@ -614,6 +720,7 @@ mod tests {
                 "yaml".to_string(),
             )],
             false,
+            None,
         );
 
         assert!(result.is_err());

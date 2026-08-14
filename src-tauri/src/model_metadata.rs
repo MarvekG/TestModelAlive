@@ -14,6 +14,7 @@ struct ModelMetadata {
 struct ModelLimit {
     context: u64,
     input: Option<u64>,
+    output: u64,
 }
 
 pub(crate) fn opencode_model_variants() -> &'static BTreeMap<String, Value> {
@@ -27,6 +28,7 @@ pub(crate) fn model_limit(model: &str) -> Option<Value> {
     if let Some(input) = limit.input {
         value.insert("input".to_string(), Value::from(input));
     }
+    value.insert("output".to_string(), Value::from(limit.output));
     Some(Value::Object(value))
 }
 
@@ -50,7 +52,7 @@ mod tests {
     fn embedded_metadata_contains_deepseek_v4_capabilities() {
         assert_eq!(
             model_limit("deepseek-v4-flash"),
-            Some(serde_json::json!({ "context": 1_000_000 }))
+            Some(serde_json::json!({ "context": 1_000_000, "output": 384_000 }))
         );
         assert_eq!(dsh_default_input(), ["text".to_string()]);
         assert!(opencode_model_variants().get("deepseek-v4-flash").is_some());
