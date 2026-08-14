@@ -361,7 +361,7 @@ export function initApp() {
       }).then((options) => (options ? { ...options, useNativeDeepSeekProvider: false } : null));
     }
     if (target === "deepseek") {
-      const options = await chooseDeepSeekApplyOptions({ models, t, isModalOpen: isTestPanelOpen });
+      const options = await chooseDeepSeekApplyOptions({ models, t, isModalOpen: isTestPanelOpen, showAlert });
       return options ? { ...options, timeouts: null } : null;
     }
     return null;

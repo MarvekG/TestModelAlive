@@ -2,7 +2,7 @@ use serde_yaml::{Mapping, Value};
 use std::fs;
 
 use crate::cli_config::deepseek::{
-    build_settings_content, dsh_api_key_env, dsh_api_key_env_for_endpoint_id,
+    build_test_settings_content, dsh_api_key_env, dsh_api_key_env_for_endpoint_id,
     dsh_api_key_env_for_name, dsh_provider_name_for_endpoint_name, parse_yaml_mapping,
 };
 use crate::models::SavedEndpoint;
@@ -18,7 +18,7 @@ pub(crate) fn prepare_deepseek(
     let dsh_home = app_data_dir(app)?.join("dsh-home");
     fs::create_dir_all(&dsh_home).map_err(|err| err.to_string())?;
     let settings_path = dsh_home.join("settings.yaml");
-    let settings = build_settings_content(&settings_path, endpoint, model)?;
+    let settings = build_test_settings_content(&settings_path, endpoint, model)?;
     fs::write(&settings_path, settings).map_err(|err| err.to_string())?;
 
     Ok(TestCommand {

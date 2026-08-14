@@ -41,7 +41,7 @@ pub(crate) fn build_deepseek_preview_with_warnings(
     files: &[(String, PathBuf, String)],
     use_native_deepseek_provider: bool,
 ) -> Result<(Vec<CliConfigPreviewFile>, Vec<CliConfigPreviewWarning>), String> {
-    let default_model = select_default_model(models, default_model)?;
+    let default_model = select_default_model(models, default_model, use_native_deepseek_provider)?;
     let mut output = Vec::new();
     let mut warnings = Vec::new();
     for (file_id, path, language) in files {
@@ -71,6 +71,7 @@ pub(crate) fn build_deepseek_preview_with_warnings(
     Ok((output, warnings))
 }
 
+#[cfg(test)]
 pub(crate) fn build_settings_content(
     path: &Path,
     endpoint: &SavedEndpoint,
@@ -78,6 +79,22 @@ pub(crate) fn build_settings_content(
 ) -> Result<String, String> {
     let models = vec![model.to_string()];
     Ok(build_settings_content_with_overwrite(path, endpoint, &models, model, false)?.0)
+}
+
+pub(crate) fn build_test_settings_content(
+    path: &Path,
+    endpoint: &SavedEndpoint,
+    model: &str,
+) -> Result<String, String> {
+    let models = vec![model.to_string()];
+    Ok(build_settings_content_with_overwrite(
+        path,
+        endpoint,
+        &models,
+        model,
+        is_direct_deepseek_model(model),
+    )?
+    .0)
 }
 
 fn build_settings_content_with_overwrite(
@@ -322,12 +339,19 @@ fn known_model_profile(model: &str) -> Option<ModelProfile> {
 fn select_default_model(
     models: &[String],
     default_model: Option<String>,
+    use_native_deepseek_provider: bool,
 ) -> Result<String, String> {
     let default_model = default_model
         .filter(|model| models.iter().any(|selected| selected == model))
         .ok_or_else(|| {
             "DeepSeek Harness default model must be one of the selected models".to_string()
         })?;
+    if !use_native_deepseek_provider && is_direct_deepseek_model(&default_model) {
+        return Err(
+            "DeepSeek V4 models require the native DeepSeek provider to be the default model"
+                .to_string(),
+        );
+    }
     Ok(default_model)
 }
 
@@ -543,29 +567,56 @@ mod tests {
 
     #[test]
     fn deepseek_v4_models_stay_in_pi_ai_without_native_selection() {
-        let content = build_settings_content(
-            Path::new("deepseek-settings-does-not-exist.yaml"),
+        let (files, warnings) = build_deepseek_preview_with_warnings(
             &endpoint(),
-            "deepseek-v4-flash",
+            &["deepseek-v4-flash".to_string(), "example-model".to_string()],
+            Some("example-model".to_string()),
+            &[(
+                "deepseek-settings".to_string(),
+                PathBuf::from("deepseek-preview-does-not-exist.yaml"),
+                "yaml".to_string(),
+            )],
+            false,
         )
-        .expect("settings should be generated");
-        let value: serde_json::Value =
-            serde_yaml::from_str(&content).expect("generated settings should be valid YAML");
+        .expect("preview should be generated");
+        let value: serde_json::Value = serde_yaml::from_str(&files[0].content)
+            .expect("generated settings should be valid YAML");
 
+        assert!(warnings.is_empty());
         assert_eq!(
             value["llm-pi-ai"]["providers"]["tma-Example"]["models"],
-            json!([{
-                "id": "deepseek-v4-flash",
-                "contextWindow": 1_000_000,
-                "input": ["text"],
-                "reasoningEfforts": { "low": "low", "medium": "medium", "high": "high", "max": "max" }
-            }])
+            json!([
+                {
+                    "id": "deepseek-v4-flash",
+                    "contextWindow": 1_000_000,
+                    "input": ["text"],
+                    "reasoningEfforts": { "low": "low", "medium": "medium", "high": "high", "max": "max" }
+                },
+                { "id": "example-model" }
+            ])
         );
         assert!(value.get("llm-deepseek").is_none());
         assert_eq!(
             value["agent-default-model"],
-            json!({ "provider": "tma-Example", "model": "deepseek-v4-flash" })
+            json!({ "provider": "tma-Example", "model": "example-model" })
         );
+    }
+
+    #[test]
+    fn deepseek_v4_models_cannot_be_the_default_without_native_selection() {
+        let result = build_deepseek_preview_with_warnings(
+            &endpoint(),
+            &["deepseek-v4-flash".to_string(), "example-model".to_string()],
+            Some("deepseek-v4-flash".to_string()),
+            &[(
+                "deepseek-settings".to_string(),
+                PathBuf::from("deepseek-preview-does-not-exist.yaml"),
+                "yaml".to_string(),
+            )],
+            false,
+        );
+
+        assert!(result.is_err());
     }
 
     #[test]

@@ -208,9 +208,12 @@ export function chooseDeepSeekApplyOptions(options: {
   models: string[];
   t: (key: string) => string;
   isModalOpen: () => boolean;
+  showAlert: (title: string, message: string) => Promise<void>;
 }): Promise<{ defaultModel: string; useNativeDeepSeekProvider: boolean } | null> {
-  const { models, t, isModalOpen } = options;
-  const canUseNativeDeepSeekProvider = models.some((model) => model === "deepseek-v4-flash" || model === "deepseek-v4-pro");
+  const { models, t, isModalOpen, showAlert } = options;
+  const isNativeDeepSeekModel = (model: string) => model === "deepseek-v4-flash" || model === "deepseek-v4-pro";
+  const canUseNativeDeepSeekProvider = models.some(isNativeDeepSeekModel);
+  const hasNonNativeDefaultModel = models.some((model) => !isNativeDeepSeekModel(model));
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "choice-modal";
@@ -251,12 +254,28 @@ export function chooseDeepSeekApplyOptions(options: {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") finish(null);
     };
+    const updateDefaultModelAvailability = () => {
+      const nativeProviderEnabled = useNativeDeepSeekProvider?.checked ?? false;
+      modelSelect?.querySelectorAll<HTMLOptionElement>("option").forEach((option) => {
+        option.disabled = !nativeProviderEnabled && isNativeDeepSeekModel(option.value);
+      });
+      if (!nativeProviderEnabled && modelSelect && isNativeDeepSeekModel(modelSelect.value)) {
+        const fallback = models.find((model) => !isNativeDeepSeekModel(model));
+        if (fallback) modelSelect.value = fallback;
+      }
+      if (modelSelect) modelSelect.disabled = !nativeProviderEnabled && !hasNonNativeDefaultModel;
+    };
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) finish(null);
     });
+    useNativeDeepSeekProvider?.addEventListener("change", updateDefaultModelAvailability);
     overlay.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
-      button.addEventListener("click", () => {
+      button.addEventListener("click", async () => {
         if (button.dataset.action === "confirm" && modelSelect?.value) {
+          if (!useNativeDeepSeekProvider?.checked && isNativeDeepSeekModel(modelSelect.value)) {
+            await showAlert(t("deepSeekApplyOptionsTitle"), t("deepSeekNativeProviderRequired"));
+            return;
+          }
           finish({ defaultModel: modelSelect.value, useNativeDeepSeekProvider: useNativeDeepSeekProvider?.checked ?? false });
         }
         else finish(null);
@@ -265,6 +284,7 @@ export function chooseDeepSeekApplyOptions(options: {
     document.body.classList.add("modal-open");
     document.addEventListener("keydown", onKeyDown);
     document.body.append(overlay);
+    updateDefaultModelAvailability();
     modelSelect?.focus();
   });
 }
