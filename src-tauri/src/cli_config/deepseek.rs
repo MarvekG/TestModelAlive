@@ -107,30 +107,38 @@ pub(crate) fn build_test_settings_content(
 pub(crate) fn build_restore_official_deepseek_preview(
     files: &[(String, PathBuf, String)],
 ) -> Result<Vec<CliConfigPreviewFile>, String> {
-    build_deepseek_operation_preview(files, restore_official_settings_content)
+    build_deepseek_operation_preview(
+        files,
+        restore_official_settings_content,
+        preserve_credentials_content,
+    )
 }
 
 pub(crate) fn build_remove_deepseek_provider_preview(
     endpoint: &SavedEndpoint,
     files: &[(String, PathBuf, String)],
 ) -> Result<Vec<CliConfigPreviewFile>, String> {
-    build_deepseek_operation_preview(files, |path| {
-        remove_deepseek_provider_settings_content(path, endpoint)
-    })
+    build_deepseek_operation_preview(
+        files,
+        |path| remove_deepseek_provider_settings_content(path, endpoint),
+        |path| remove_deepseek_provider_credentials_content(path, endpoint),
+    )
 }
 
-fn build_deepseek_operation_preview<F>(
+fn build_deepseek_operation_preview<Settings, Credentials>(
     files: &[(String, PathBuf, String)],
-    mut build_settings: F,
+    mut build_settings: Settings,
+    mut build_credentials: Credentials,
 ) -> Result<Vec<CliConfigPreviewFile>, String>
 where
-    F: FnMut(&Path) -> Result<String, String>,
+    Settings: FnMut(&Path) -> Result<String, String>,
+    Credentials: FnMut(&Path) -> Result<String, String>,
 {
     let mut output = Vec::new();
     for (file_id, path, language) in files {
         let content = match file_id.as_str() {
             "deepseek-settings" => build_settings(path)?,
-            "deepseek-credentials" => serialize_yaml_mapping(&read_yaml_mapping(path)?)?,
+            "deepseek-credentials" => build_credentials(path)?,
             _ => {
                 return Err(format!(
                     "unexpected DeepSeek Harness config file: {file_id}"
@@ -140,6 +148,10 @@ where
         output.push(preview_file(file_id, path, language, content));
     }
     Ok(output)
+}
+
+fn preserve_credentials_content(path: &Path) -> Result<String, String> {
+    serialize_yaml_mapping(&read_yaml_mapping(path)?)
 }
 
 fn restore_official_settings_content(path: &Path) -> Result<String, String> {
@@ -167,6 +179,16 @@ fn remove_deepseek_provider_settings_content(
     }
     remove_default_model_for_provider(&mut root, &provider_name);
     serialize_yaml_mapping(&root)
+}
+
+fn remove_deepseek_provider_credentials_content(
+    path: &Path,
+    endpoint: &SavedEndpoint,
+) -> Result<String, String> {
+    let mut credentials = read_yaml_mapping(path)?;
+    credentials.remove(&yaml_key(&dsh_api_key_env(endpoint)));
+    credentials.remove(&yaml_key(&dsh_api_key_env_for_name(&endpoint.name)));
+    serialize_yaml_mapping(&credentials)
 }
 
 fn remove_default_model_for_provider(root: &mut Mapping, provider_name: &str) -> bool {
@@ -546,8 +568,8 @@ mod tests {
     use super::{
         build_deepseek_preview_with_warnings, build_settings_content, build_test_settings_content,
         dsh_api_key_env, dsh_api_key_env_for_endpoint_id,
-        remove_deepseek_provider_settings_content, restore_official_settings_content,
-        DSH_TEST_MAX_TOKENS, DSH_THIRD_PARTY_MAX_TOKENS,
+        remove_deepseek_provider_credentials_content, remove_deepseek_provider_settings_content,
+        restore_official_settings_content, DSH_TEST_MAX_TOKENS, DSH_THIRD_PARTY_MAX_TOKENS,
     };
     use crate::model_metadata::model_limit;
     use crate::models::SavedEndpoint;
@@ -795,6 +817,27 @@ mod tests {
         );
         assert_eq!(value["llm-deepseek"]["apiKeyEnv"], json!("TMA_DSH_API_KEY"));
         assert!(value.get("agent-default-model").is_none());
+    }
+
+    #[test]
+    fn remove_deepseek_provider_removes_only_its_credentials() {
+        let path = temporary_settings_path();
+        fs::write(
+            &path,
+            "TMA_DSH_646565707365656B2D746573742D303031_API_KEY: current-key\nTMA_DSH_EXAMPLE_API_KEY: legacy-key\nOTHER_API_KEY: keep\n",
+        )
+        .expect("test credentials should be written");
+        let result = remove_deepseek_provider_credentials_content(&path, &endpoint());
+        let _ = fs::remove_file(&path);
+        let content = result.expect("provider credentials should be removed");
+        let value: serde_json::Value =
+            serde_yaml::from_str(&content).expect("updated credentials should be valid YAML");
+
+        assert!(value
+            .get("TMA_DSH_646565707365656B2D746573742D303031_API_KEY")
+            .is_none());
+        assert!(value.get("TMA_DSH_EXAMPLE_API_KEY").is_none());
+        assert_eq!(value["OTHER_API_KEY"], json!("keep"));
     }
 
     #[test]
