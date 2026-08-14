@@ -208,12 +208,8 @@ export function chooseDeepSeekApplyOptions(options: {
   models: string[];
   t: (key: string) => string;
   isModalOpen: () => boolean;
-  showAlert: (title: string, message: string) => Promise<void>;
-}): Promise<{ defaultModel: string; useNativeDeepSeekProvider: boolean; deepseekMaxTokens: number | null } | null> {
-  const { models, t, isModalOpen, showAlert } = options;
-  const isNativeDeepSeekModel = (model: string) => model === "deepseek-v4-flash" || model === "deepseek-v4-pro";
-  const canUseNativeDeepSeekProvider = models.some(isNativeDeepSeekModel);
-  const hasNonNativeDefaultModel = models.some((model) => !isNativeDeepSeekModel(model));
+}): Promise<{ defaultModel: string; apiProtocol: string } | null> {
+  const { models, t, isModalOpen } = options;
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "choice-modal";
@@ -229,22 +225,17 @@ export function chooseDeepSeekApplyOptions(options: {
           </label>
           <small>${escapeHtml(t("deepSeekDefaultModelHint"))}</small>
         </section>
-        ${canUseNativeDeepSeekProvider ? `
         <section class="opencode-option-card">
-          <label class="inline-check option-toggle">
-            <input data-field="useNativeDeepSeekProvider" type="checkbox" />
-            ${escapeHtml(t("deepSeekNativeProviderOption"))}
-          </label>
-          <small>${escapeHtml(t("deepSeekNativeProviderReason"))} <strong>${escapeHtml(t("deepSeekNativeProviderWarning"))}</strong></small>
           <label>
-            <span>${escapeHtml(t("deepSeekMaxTokens"))}</span>
-            <select data-field="deepseekMaxTokens" class="model-select" disabled>
-              <option value="384000">${escapeHtml(t("deepSeekMaxTokensOfficial"))}</option>
-              <option value="131072">${escapeHtml(t("deepSeekMaxTokensThirdParty"))}</option>
+            <span>${escapeHtml(t("deepSeekApiProtocol"))}</span>
+            <select data-field="apiProtocol" class="model-select">
+              <option value="openai-completions">openai-completions</option>
+              <option value="openai-responses">openai-responses</option>
+              <option value="anthropic-messages">anthropic-messages</option>
             </select>
           </label>
-          <small>${escapeHtml(t("deepSeekMaxTokensHint"))}</small>
-        </section>` : ""}
+          <small>${escapeHtml(t("deepSeekApiProtocolHint"))}</small>
+        </section>
         <div class="actions choice-actions">
           <button data-action="confirm">${escapeHtml(t("confirm"))}</button>
           <button data-action="cancel" class="secondary">${escapeHtml(t("cancel"))}</button>
@@ -252,9 +243,8 @@ export function chooseDeepSeekApplyOptions(options: {
       </div>
     `;
     const modelSelect = overlay.querySelector<HTMLSelectElement>("select.model-select");
-    const useNativeDeepSeekProvider = overlay.querySelector<HTMLInputElement>('input[data-field="useNativeDeepSeekProvider"]');
-    const outputTokens = overlay.querySelector<HTMLSelectElement>('select[data-field="deepseekMaxTokens"]');
-    const finish = (value: { defaultModel: string; useNativeDeepSeekProvider: boolean; deepseekMaxTokens: number | null } | null) => {
+    const apiProtocol = overlay.querySelector<HTMLSelectElement>('select[data-field="apiProtocol"]');
+    const finish = (value: { defaultModel: string; apiProtocol: string } | null) => {
       document.removeEventListener("keydown", onKeyDown);
       overlay.remove();
       document.body.classList.toggle("modal-open", isModalOpen());
@@ -263,33 +253,15 @@ export function chooseDeepSeekApplyOptions(options: {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") finish(null);
     };
-    const updateDefaultModelAvailability = () => {
-      const nativeProviderEnabled = useNativeDeepSeekProvider?.checked ?? false;
-      modelSelect?.querySelectorAll<HTMLOptionElement>("option").forEach((option) => {
-        option.disabled = !nativeProviderEnabled && isNativeDeepSeekModel(option.value);
-      });
-      if (!nativeProviderEnabled && modelSelect && isNativeDeepSeekModel(modelSelect.value)) {
-        const fallback = models.find((model) => !isNativeDeepSeekModel(model));
-        if (fallback) modelSelect.value = fallback;
-      }
-      if (modelSelect) modelSelect.disabled = !nativeProviderEnabled && !hasNonNativeDefaultModel;
-      if (outputTokens) outputTokens.disabled = !nativeProviderEnabled;
-    };
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) finish(null);
     });
-    useNativeDeepSeekProvider?.addEventListener("change", updateDefaultModelAvailability);
     overlay.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
       button.addEventListener("click", async () => {
         if (button.dataset.action === "confirm" && modelSelect?.value) {
-          if (!useNativeDeepSeekProvider?.checked && isNativeDeepSeekModel(modelSelect.value)) {
-            await showAlert(t("deepSeekApplyOptionsTitle"), t("deepSeekNativeProviderRequired"));
-            return;
-          }
           finish({
             defaultModel: modelSelect.value,
-            useNativeDeepSeekProvider: useNativeDeepSeekProvider?.checked ?? false,
-            deepseekMaxTokens: outputTokens ? Number(outputTokens.value) : null,
+            apiProtocol: apiProtocol?.value ?? "openai-completions",
           });
         }
         else finish(null);
@@ -298,7 +270,6 @@ export function chooseDeepSeekApplyOptions(options: {
     document.body.classList.add("modal-open");
     document.addEventListener("keydown", onKeyDown);
     document.body.append(overlay);
-    updateDefaultModelAvailability();
     modelSelect?.focus();
   });
 }

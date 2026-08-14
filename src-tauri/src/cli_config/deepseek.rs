@@ -8,12 +8,8 @@ use crate::models::SavedEndpoint;
 
 use super::preview::preview_file;
 
-const DSH_DEEPSEEK_PROVIDER: &str = "deepseek-official";
-const DSH_OFFICIAL_MAX_TOKENS: u64 = 384_000;
-const DSH_THIRD_PARTY_MAX_TOKENS: u64 = 131_072;
-const DSH_TEST_MAX_TOKENS: u64 = DSH_THIRD_PARTY_MAX_TOKENS;
-const DEEPSEEK_NO_CUSTOM_CONFIG: &str = "deepseek_no_custom_config";
 const DEEPSEEK_PROVIDER_NOT_FOUND: &str = "deepseek_provider_not_found";
+const DEFAULT_API_PROTOCOL: &str = "openai-completions";
 
 pub(crate) fn dsh_provider_name(endpoint: &SavedEndpoint) -> String {
     dsh_provider_name_for_endpoint_name(&endpoint.name)
@@ -36,11 +32,10 @@ pub(crate) fn build_deepseek_preview_with_warnings(
     models: &[String],
     default_model: Option<String>,
     files: &[(String, PathBuf, String)],
-    use_native_deepseek_provider: bool,
-    deepseek_max_tokens: Option<u64>,
+    api_protocol: Option<String>,
 ) -> Result<(Vec<CliConfigPreviewFile>, Vec<CliConfigPreviewWarning>), String> {
-    let default_model = select_default_model(models, default_model, use_native_deepseek_provider)?;
-    let deepseek_max_tokens = select_deepseek_max_tokens(deepseek_max_tokens)?;
+    let default_model = select_default_model(models, default_model)?;
+    let api_protocol = select_api_protocol(api_protocol.as_deref())?;
     let mut output = Vec::new();
     let mut warnings = Vec::new();
     for (file_id, path, language) in files {
@@ -51,8 +46,7 @@ pub(crate) fn build_deepseek_preview_with_warnings(
                     endpoint,
                     models,
                     &default_model,
-                    use_native_deepseek_provider,
-                    Some(deepseek_max_tokens),
+                    api_protocol,
                 )?;
                 for provider in overwritten_providers {
                     warnings.push(CliConfigPreviewWarning::DeepseekProviderOverwrite { provider });
@@ -78,7 +72,16 @@ pub(crate) fn build_settings_content(
     model: &str,
 ) -> Result<String, String> {
     let models = vec![model.to_string()];
-    Ok(build_settings_content_with_overwrite(path, endpoint, &models, model, false, None)?.0)
+    Ok(
+        build_settings_content_with_overwrite(
+            path,
+            endpoint,
+            &models,
+            model,
+            DEFAULT_API_PROTOCOL,
+        )?
+        .0,
+    )
 }
 
 pub(crate) fn build_test_settings_content(
@@ -87,24 +90,15 @@ pub(crate) fn build_test_settings_content(
     model: &str,
 ) -> Result<String, String> {
     let models = vec![model.to_string()];
-    Ok(build_settings_content_with_overwrite(
-        path,
-        endpoint,
-        &models,
-        model,
-        is_direct_deepseek_model(model),
-        Some(DSH_TEST_MAX_TOKENS),
-    )?
-    .0)
-}
-
-pub(crate) fn build_restore_official_deepseek_preview(
-    files: &[(String, PathBuf, String)],
-) -> Result<Vec<CliConfigPreviewFile>, String> {
-    build_deepseek_operation_preview(
-        files,
-        restore_official_settings_content,
-        preserve_credentials_content,
+    Ok(
+        build_settings_content_with_overwrite(
+            path,
+            endpoint,
+            &models,
+            model,
+            DEFAULT_API_PROTOCOL,
+        )?
+        .0,
     )
 }
 
@@ -142,20 +136,6 @@ where
         output.push(preview_file(file_id, path, language, content));
     }
     Ok(output)
-}
-
-fn preserve_credentials_content(path: &Path) -> Result<String, String> {
-    serialize_yaml_mapping(&read_yaml_mapping(path)?)
-}
-
-fn restore_official_settings_content(path: &Path) -> Result<String, String> {
-    let mut root = read_yaml_mapping(path)?;
-    let removed_provider = root.remove(&yaml_key("llm-deepseek")).is_some();
-    let removed_default = root.remove(&yaml_key("agent-default-model")).is_some();
-    if !removed_provider && !removed_default {
-        return Err(DEEPSEEK_NO_CUSTOM_CONFIG.to_string());
-    }
-    serialize_yaml_mapping(&root)
 }
 
 fn remove_deepseek_provider_settings_content(
@@ -202,66 +182,25 @@ fn build_settings_content_with_overwrite(
     endpoint: &SavedEndpoint,
     models: &[String],
     default_model: &str,
-    use_native_deepseek_provider: bool,
-    max_tokens_cap: Option<u64>,
+    api_protocol: &str,
 ) -> Result<(String, Vec<String>), String> {
     let mut root = read_yaml_mapping(path)?;
-    let (direct_models, pi_models) = if use_native_deepseek_provider {
-        (
-            models
-                .iter()
-                .filter(|model| is_direct_deepseek_model(model))
-                .cloned()
-                .collect::<Vec<_>>(),
-            models
-                .iter()
-                .filter(|model| !is_direct_deepseek_model(model))
-                .cloned()
-                .collect::<Vec<_>>(),
-        )
-    } else {
-        (Vec::new(), models.to_vec())
-    };
     let provider_name = dsh_provider_name(endpoint);
     let mut overwritten_providers = Vec::new();
-    if pi_models.is_empty() {
-        if remove_pi_ai_provider(&mut root, &provider_name)? {
-            overwritten_providers.push(provider_name.clone());
-        }
-    } else {
-        let llm = nested_mapping(&mut root, "llm-pi-ai", "settings.llm-pi-ai")?;
-        let providers = nested_mapping(llm, "providers", "settings.llm-pi-ai.providers")?;
-        let provider_key = yaml_key(&provider_name);
-        if providers.contains_key(&provider_key) {
-            overwritten_providers.push(provider_name.clone());
-        }
-        providers.insert(provider_key, provider_definition(endpoint, &pi_models));
+    let llm = nested_mapping(&mut root, "llm-pi-ai", "settings.llm-pi-ai")?;
+    let providers = nested_mapping(llm, "providers", "settings.llm-pi-ai.providers")?;
+    let provider_key = yaml_key(&provider_name);
+    if providers.contains_key(&provider_key) {
+        overwritten_providers.push(provider_name.clone());
     }
-    if !direct_models.is_empty() {
-        if root.contains_key(&yaml_key("llm-deepseek")) {
-            overwritten_providers.push(DSH_DEEPSEEK_PROVIDER.to_string());
-        }
-        root.insert(
-            yaml_key("llm-deepseek"),
-            direct_deepseek_definition(endpoint, &direct_models, max_tokens_cap),
-        );
-    }
+    providers.insert(
+        provider_key,
+        provider_definition(endpoint, models, api_protocol),
+    );
 
     let mut default_model_config = Mapping::new();
-    let default_provider =
-        if use_native_deepseek_provider && is_direct_deepseek_model(default_model) {
-            DSH_DEEPSEEK_PROVIDER.to_string()
-        } else {
-            provider_name
-        };
-    default_model_config.insert(yaml_key("provider"), Value::String(default_provider));
+    default_model_config.insert(yaml_key("provider"), Value::String(provider_name));
     default_model_config.insert(yaml_key("model"), Value::String(default_model.to_string()));
-    if use_native_deepseek_provider && is_direct_deepseek_model(default_model) {
-        default_model_config.insert(
-            yaml_key("reasoningEffort"),
-            Value::String("high".to_string()),
-        );
-    }
     root.insert(
         yaml_key("agent-default-model"),
         Value::Mapping(default_model_config),
@@ -295,7 +234,7 @@ fn build_credentials_content(path: &Path, endpoint: &SavedEndpoint) -> Result<St
     serialize_yaml_mapping(&credentials)
 }
 
-fn provider_definition(endpoint: &SavedEndpoint, models: &[String]) -> Value {
+fn provider_definition(endpoint: &SavedEndpoint, models: &[String], api_protocol: &str) -> Value {
     let model_entries = models.iter().map(|model| model_definition(model)).collect();
 
     let mut provider = Mapping::new();
@@ -307,82 +246,13 @@ fn provider_definition(endpoint: &SavedEndpoint, models: &[String]) -> Value {
         yaml_key("apiKeyEnv"),
         Value::String(dsh_api_key_env(endpoint)),
     );
-    provider.insert(
-        yaml_key("api"),
-        Value::String("openai-completions".to_string()),
-    );
+    provider.insert(yaml_key("api"), Value::String(api_protocol.to_string()));
     provider.insert(
         yaml_key("baseURL"),
         Value::String(endpoint.base_url.clone()),
     );
     provider.insert(yaml_key("models"), Value::Sequence(model_entries));
     Value::Mapping(provider)
-}
-
-fn direct_deepseek_definition(
-    endpoint: &SavedEndpoint,
-    models: &[String],
-    max_tokens_cap: Option<u64>,
-) -> Value {
-    let model_entries = models
-        .iter()
-        .map(|model| direct_deepseek_model_definition(model, max_tokens_cap))
-        .collect();
-    let mut provider = Mapping::new();
-    provider.insert(
-        yaml_key("apiKeyEnv"),
-        Value::String(dsh_api_key_env(endpoint)),
-    );
-    provider.insert(
-        yaml_key("baseURL"),
-        Value::String(endpoint.base_url.clone()),
-    );
-    provider.insert(yaml_key("thinking"), Value::String("enabled".to_string()));
-    provider.insert(
-        yaml_key("reasoningEffort"),
-        Value::String("high".to_string()),
-    );
-    if let Some(limit) = models.first().and_then(|model| model_limit(model)) {
-        if let Some(context_window) = limit.get("context").and_then(|value| value.as_u64()) {
-            provider.insert(
-                yaml_key("defaultContextWindow"),
-                Value::from(context_window),
-            );
-        }
-        if let Some(max_tokens) = limit.get("output").and_then(|value| value.as_u64()) {
-            provider.insert(
-                yaml_key("maxTokens"),
-                Value::from(limit_output_tokens(max_tokens, max_tokens_cap)),
-            );
-        }
-    }
-    provider.insert(yaml_key("models"), Value::Sequence(model_entries));
-    Value::Mapping(provider)
-}
-
-fn direct_deepseek_model_definition(model: &str, max_tokens_cap: Option<u64>) -> Value {
-    let mut model_entry = Mapping::new();
-    model_entry.insert(yaml_key("id"), Value::String(model.to_string()));
-    if let Some(limit) = model_limit(model) {
-        if let Some(context_window) = limit.get("context").and_then(|value| value.as_u64()) {
-            model_entry.insert(yaml_key("contextWindow"), Value::from(context_window));
-        }
-        if let Some(max_tokens) = limit.get("output").and_then(|value| value.as_u64()) {
-            model_entry.insert(
-                yaml_key("maxTokens"),
-                Value::from(limit_output_tokens(max_tokens, max_tokens_cap)),
-            );
-        }
-    }
-    Value::Mapping(model_entry)
-}
-
-fn limit_output_tokens(max_tokens: u64, max_tokens_cap: Option<u64>) -> u64 {
-    max_tokens_cap.map_or(max_tokens, |cap| max_tokens.min(cap))
-}
-
-fn is_direct_deepseek_model(model: &str) -> bool {
-    matches!(model, "deepseek-v4-flash" | "deepseek-v4-pro")
 }
 
 fn model_definition(model: &str) -> Value {
@@ -470,32 +340,26 @@ fn known_model_profile(model: &str) -> Option<ModelProfile> {
 fn select_default_model(
     models: &[String],
     default_model: Option<String>,
-    use_native_deepseek_provider: bool,
 ) -> Result<String, String> {
     let default_model = default_model
         .filter(|model| models.iter().any(|selected| selected == model))
         .ok_or_else(|| {
             "DeepSeek Harness default model must be one of the selected models".to_string()
         })?;
-    if !use_native_deepseek_provider && is_direct_deepseek_model(&default_model) {
-        return Err(
-            "DeepSeek V4 models require the native DeepSeek provider to be the default model"
-                .to_string(),
-        );
-    }
     Ok(default_model)
 }
 
-fn select_deepseek_max_tokens(max_tokens: Option<u64>) -> Result<u64, String> {
-    let max_tokens = max_tokens.unwrap_or(DSH_OFFICIAL_MAX_TOKENS);
-    match max_tokens {
-        DSH_OFFICIAL_MAX_TOKENS | DSH_THIRD_PARTY_MAX_TOKENS => {
-            Ok(max_tokens)
-        }
-        max_tokens => Err(format!(
-            "DeepSeek maximum output tokens must be {DSH_OFFICIAL_MAX_TOKENS} or {DSH_THIRD_PARTY_MAX_TOKENS}, got {max_tokens}"
-        )),
+fn select_api_protocol(api_protocol: Option<&str>) -> Result<&str, String> {
+    let api_protocol = api_protocol.unwrap_or(DEFAULT_API_PROTOCOL);
+    if matches!(
+        api_protocol,
+        "openai-completions" | "openai-responses" | "anthropic-messages"
+    ) {
+        return Ok(api_protocol);
     }
+    Err(format!(
+        "DeepSeek Harness API protocol must be openai-completions, openai-responses, or anthropic-messages, got {api_protocol}"
+    ))
 }
 
 pub(crate) fn parse_yaml_mapping(path: &Path, text: &str) -> Result<Mapping, String> {
@@ -555,13 +419,10 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        build_deepseek_preview_with_warnings, build_settings_content, build_test_settings_content,
-        dsh_api_key_env, remove_deepseek_provider_credentials_content,
-        remove_deepseek_provider_settings_content, restore_official_settings_content,
-        DEEPSEEK_NO_CUSTOM_CONFIG, DEEPSEEK_PROVIDER_NOT_FOUND, DSH_TEST_MAX_TOKENS,
-        DSH_THIRD_PARTY_MAX_TOKENS,
+        build_deepseek_preview_with_warnings, build_settings_content, dsh_api_key_env,
+        remove_deepseek_provider_credentials_content, remove_deepseek_provider_settings_content,
+        DEEPSEEK_PROVIDER_NOT_FOUND,
     };
-    use crate::model_metadata::model_limit;
     use crate::models::SavedEndpoint;
 
     fn endpoint() -> SavedEndpoint {
@@ -623,7 +484,6 @@ mod tests {
                 PathBuf::from("deepseek-preview-does-not-exist.yaml"),
                 "yaml".to_string(),
             )],
-            false,
             None,
         )
         .expect("preview should be generated");
@@ -639,154 +499,50 @@ mod tests {
     }
 
     #[test]
-    fn deepseek_v4_models_use_the_direct_adapter() {
-        let models = vec![
-            "deepseek-v4-flash".to_string(),
-            "deepseek-v4-pro".to_string(),
-            "example-model".to_string(),
-        ];
-        let (files, warnings) = build_deepseek_preview_with_warnings(
+    fn preview_uses_the_selected_api_protocol() {
+        for api_protocol in [
+            "openai-completions",
+            "openai-responses",
+            "anthropic-messages",
+        ] {
+            let (files, warnings) = build_deepseek_preview_with_warnings(
+                &endpoint(),
+                &["example-model".to_string()],
+                Some("example-model".to_string()),
+                &[(
+                    "deepseek-settings".to_string(),
+                    PathBuf::from("deepseek-preview-does-not-exist.yaml"),
+                    "yaml".to_string(),
+                )],
+                Some(api_protocol.to_string()),
+            )
+            .expect("preview should be generated");
+            let value: serde_json::Value =
+                serde_yaml::from_str(&files[0].content).expect("preview should be valid YAML");
+
+            assert!(warnings.is_empty());
+            assert_eq!(
+                value["llm-pi-ai"]["providers"]["tma-Example"]["api"],
+                json!(api_protocol)
+            );
+        }
+    }
+
+    #[test]
+    fn preview_rejects_an_unknown_api_protocol() {
+        let result = build_deepseek_preview_with_warnings(
             &endpoint(),
-            &models,
-            Some("deepseek-v4-pro".to_string()),
+            &["example-model".to_string()],
+            Some("example-model".to_string()),
             &[(
                 "deepseek-settings".to_string(),
                 PathBuf::from("deepseek-preview-does-not-exist.yaml"),
                 "yaml".to_string(),
             )],
-            true,
-            None,
-        )
-        .expect("preview should be generated");
-        let value: serde_json::Value = serde_yaml::from_str(&files[0].content)
-            .expect("generated settings should be valid YAML");
-        let direct_models = &value["llm-deepseek"]["models"];
-        let limit = model_limit("deepseek-v4-flash").expect("OpenCode should know this model");
+            Some("unsupported".to_string()),
+        );
 
-        assert!(warnings.is_empty());
-        assert_eq!(
-            value["llm-deepseek"]["apiKeyEnv"],
-            json!("TMA_DSH_EXAMPLE_API_KEY")
-        );
-        assert_eq!(
-            value["llm-deepseek"]["baseURL"],
-            json!("https://api.example.com/v1")
-        );
-        assert_eq!(value["llm-deepseek"]["thinking"], json!("enabled"));
-        assert_eq!(value["llm-deepseek"]["reasoningEffort"], json!("high"));
-        assert_eq!(
-            value["llm-deepseek"]["defaultContextWindow"], limit["context"],
-            "the direct adapter should reuse the model context limit"
-        );
-        assert_eq!(value["llm-deepseek"]["maxTokens"], limit["output"]);
-        assert_eq!(
-            direct_models,
-            &json!([
-                {
-                    "id": "deepseek-v4-flash",
-                    "contextWindow": 1_000_000,
-                    "maxTokens": 384_000
-                },
-                {
-                    "id": "deepseek-v4-pro",
-                    "contextWindow": 1_000_000,
-                    "maxTokens": 384_000
-                }
-            ])
-        );
-        assert_eq!(
-            value["llm-pi-ai"]["providers"]["tma-Example"]["models"],
-            json!([{ "id": "example-model" }])
-        );
-        assert_eq!(
-            value["agent-default-model"],
-            json!({
-                "provider": "deepseek-official",
-                "model": "deepseek-v4-pro",
-                "reasoningEffort": "high"
-            })
-        );
-    }
-
-    #[test]
-    fn isolated_deepseek_v4_test_limits_output_tokens() {
-        let content = build_test_settings_content(
-            Path::new("deepseek-settings-does-not-exist.yaml"),
-            &endpoint(),
-            "deepseek-v4-flash",
-        )
-        .expect("test settings should be generated");
-        let value: serde_json::Value =
-            serde_yaml::from_str(&content).expect("test settings should be valid YAML");
-
-        assert_eq!(
-            value["llm-deepseek"]["maxTokens"],
-            json!(DSH_TEST_MAX_TOKENS)
-        );
-        assert_eq!(
-            value["llm-deepseek"]["models"][0]["maxTokens"],
-            json!(DSH_TEST_MAX_TOKENS)
-        );
-    }
-
-    #[test]
-    fn direct_deepseek_preview_supports_the_third_party_limit() {
-        let (files, _) = build_deepseek_preview_with_warnings(
-            &endpoint(),
-            &["deepseek-v4-flash".to_string()],
-            Some("deepseek-v4-flash".to_string()),
-            &[(
-                "deepseek-settings".to_string(),
-                PathBuf::from("deepseek-preview-does-not-exist.yaml"),
-                "yaml".to_string(),
-            )],
-            true,
-            Some(DSH_THIRD_PARTY_MAX_TOKENS),
-        )
-        .expect("preview should be generated");
-        let value: serde_json::Value =
-            serde_yaml::from_str(&files[0].content).expect("preview should be valid YAML");
-
-        assert_eq!(
-            value["llm-deepseek"]["maxTokens"],
-            json!(DSH_THIRD_PARTY_MAX_TOKENS)
-        );
-        assert_eq!(
-            value["llm-deepseek"]["models"][0]["maxTokens"],
-            json!(DSH_THIRD_PARTY_MAX_TOKENS)
-        );
-    }
-
-    #[test]
-    fn restore_official_config_removes_deepseek_and_default_overrides() {
-        let path = temporary_settings_path();
-        fs::write(
-            &path,
-            "llm-pi-ai:\n  providers:\n    existing:\n      api: openai-completions\nllm-deepseek:\n  apiKeyEnv: TMA_DSH_API_KEY\nagent-default-model:\n  provider: tma-Example\n  model: example-model\n",
-        )
-        .expect("test settings should be written");
-        let result = restore_official_settings_content(&path);
-        let _ = fs::remove_file(&path);
-        let content = result.expect("official settings should be restored");
-        let value: serde_json::Value =
-            serde_yaml::from_str(&content).expect("restored settings should be valid YAML");
-
-        assert!(value.get("llm-deepseek").is_none());
-        assert!(value.get("agent-default-model").is_none());
-        assert_eq!(
-            value["llm-pi-ai"]["providers"]["existing"]["api"],
-            json!("openai-completions")
-        );
-    }
-
-    #[test]
-    fn restore_official_config_returns_a_code_when_nothing_can_be_restored() {
-        let path = temporary_settings_path();
-
-        assert_eq!(
-            restore_official_settings_content(&path),
-            Err(DEEPSEEK_NO_CUSTOM_CONFIG.to_string())
-        );
+        assert!(result.is_err());
     }
 
     #[test]
@@ -794,7 +550,7 @@ mod tests {
         let path = temporary_settings_path();
         fs::write(
             &path,
-            "llm-pi-ai:\n  providers:\n    tma-Example:\n      api: openai-completions\n    existing:\n      api: openai-completions\nllm-deepseek:\n  apiKeyEnv: TMA_DSH_API_KEY\nagent-default-model:\n  provider: tma-Example\n  model: example-model\n",
+            "llm-pi-ai:\n  providers:\n    tma-Example:\n      api: openai-completions\n    existing:\n      api: openai-completions\nagent-default-model:\n  provider: tma-Example\n  model: example-model\n",
         )
         .expect("test settings should be written");
         let result = remove_deepseek_provider_settings_content(&path, &endpoint());
@@ -808,7 +564,6 @@ mod tests {
             value["llm-pi-ai"]["providers"]["existing"]["api"],
             json!("openai-completions")
         );
-        assert_eq!(value["llm-deepseek"]["apiKeyEnv"], json!("TMA_DSH_API_KEY"));
         assert!(value.get("agent-default-model").is_none());
     }
 
@@ -841,7 +596,7 @@ mod tests {
     }
 
     #[test]
-    fn deepseek_v4_models_stay_in_pi_ai_without_native_selection() {
+    fn deepseek_v4_models_stay_in_pi_ai() {
         let (files, warnings) = build_deepseek_preview_with_warnings(
             &endpoint(),
             &["deepseek-v4-flash".to_string(), "example-model".to_string()],
@@ -851,7 +606,6 @@ mod tests {
                 PathBuf::from("deepseek-preview-does-not-exist.yaml"),
                 "yaml".to_string(),
             )],
-            false,
             None,
         )
         .expect("preview should be generated");
@@ -872,7 +626,6 @@ mod tests {
                 { "id": "example-model" }
             ])
         );
-        assert!(value.get("llm-deepseek").is_none());
         assert_eq!(
             value["agent-default-model"],
             json!({ "provider": "tma-Example", "model": "example-model" })
@@ -880,8 +633,8 @@ mod tests {
     }
 
     #[test]
-    fn deepseek_v4_models_cannot_be_the_default_without_native_selection() {
-        let result = build_deepseek_preview_with_warnings(
+    fn deepseek_v4_models_can_use_the_generic_provider_by_default() {
+        let (files, warnings) = build_deepseek_preview_with_warnings(
             &endpoint(),
             &["deepseek-v4-flash".to_string(), "example-model".to_string()],
             Some("deepseek-v4-flash".to_string()),
@@ -890,11 +643,30 @@ mod tests {
                 PathBuf::from("deepseek-preview-does-not-exist.yaml"),
                 "yaml".to_string(),
             )],
-            false,
             None,
-        );
+        )
+        .expect("generic provider settings should be generated");
+        let value: serde_json::Value = serde_yaml::from_str(&files[0].content)
+            .expect("generated settings should be valid YAML");
 
-        assert!(result.is_err());
+        assert!(warnings.is_empty());
+        assert_eq!(
+            value["llm-pi-ai"]["providers"]["tma-Example"]["models"],
+            json!([
+                {
+                    "id": "deepseek-v4-flash",
+                    "contextWindow": 1_000_000,
+                    "maxTokens": 384_000,
+                    "input": ["text"],
+                    "reasoningEfforts": { "low": "low", "medium": "medium", "high": "high", "max": "max" }
+                },
+                { "id": "example-model" }
+            ])
+        );
+        assert_eq!(
+            value["agent-default-model"],
+            json!({ "provider": "tma-Example", "model": "deepseek-v4-flash" })
+        );
     }
 
     #[test]
