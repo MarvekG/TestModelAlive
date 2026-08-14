@@ -25,7 +25,7 @@ export function buildCliConfigPreviewApi(
     selectedModels,
     defaultModel,
     timeouts,
-    useNativeDeepSeekProvider,
+    useNativeDeepseekProvider: useNativeDeepSeekProvider,
   });
 }
 
