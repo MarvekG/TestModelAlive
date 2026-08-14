@@ -13,8 +13,8 @@ use crate::models::SavedEndpoint;
 use crate::paths::{cli_target_files, store_path, APP_SETTINGS_FILE};
 use crate::settings::{
     read_app_settings, read_apply_history_store, timestamp, timestamp_id, trim_apply_history_store,
-    write_app_settings, write_apply_history_store, write_text_file, CliConfigApplyHistoryFile,
-    CliConfigApplyHistoryItem, CliConfigBaselineView,
+    write_app_settings, write_apply_history_store, write_owner_only_text_file, write_text_file,
+    CliConfigApplyHistoryFile, CliConfigApplyHistoryItem, CliConfigBaselineView,
 };
 
 use super::{deepseek, opencode};
@@ -158,7 +158,15 @@ pub fn apply_cli_config(
         }
         .to_string();
         let content = normalize_edited_content(&target, &file.file_id, &target_path, &file.content);
-        let write_result = content.and_then(|content| write_text_file(&target_path, &content));
+        let write_result = content.and_then(|content| {
+            if matches!(target, CliConfigTargetKind::Deepseek)
+                && file.file_id == "deepseek-credentials"
+            {
+                write_owner_only_text_file(&target_path, &content)
+            } else {
+                write_text_file(&target_path, &content)
+            }
+        });
         history_files.push(CliConfigApplyHistoryFile {
             file_id: file.file_id.clone(),
             path: file.path.clone(),

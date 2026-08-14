@@ -129,6 +129,7 @@ The success condition is configurable:
 - For a DeepSeek Harness endpoint, select one or more models, click "Apply to DeepSeek Harness", and choose one of them as the default model.
 - The app merges DSH's `settings.yaml` and `.credentials.yaml` under `DSH_HOME` when set, or under the default `~/.dsh/` directory.
 - DeepSeek Harness credentials use the readable `TMA_DSH_<endpoint name>_API_KEY` reference.
+- On macOS and Linux, the app writes `.credentials.yaml` with owner-only `0600` permissions to satisfy DSH credential security requirements.
 - `deepseek-v4-flash` and `deepseek-v4-pro` remain in the OpenAI-compatible `tma-<endpoint name>` provider by default. `llm-pi-ai` does not yet support DeepSeek models through third-party endpoints. To use either as the default model, select "Split DeepSeek V4 models into llm-deepseek" in the apply options to write them to the native `llm-deepseek` configuration and use `deepseek-official` as their `agent-default-model` provider. Without this option, DeepSeek V4 models cannot be the default model.
 - **Splitting overwrites the existing official DeepSeek configuration in `llm-deepseek`.**
 - When splitting, choose the maximum output: the official endpoint default is `384000`, and `131072` is available for third-party endpoints. Isolated tests always use `131072` and do not read existing DSH configuration.
