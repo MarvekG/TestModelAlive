@@ -17,8 +17,7 @@ export function buildCliConfigPreviewApi(
   selectedModels: string[],
   defaultModel: string | null = null,
   timeouts: OpenCodeTimeoutOptions | null = null,
-  useNativeDeepSeekProvider = false,
-  deepseekMaxTokens: number | null = null,
+  deepseekApiProtocol: string | null = null,
 ) {
   return invokeCommand<CliConfigPreview>("build_cli_config_preview", {
     endpoint,
@@ -26,17 +25,12 @@ export function buildCliConfigPreviewApi(
     selectedModels,
     defaultModel,
     timeouts,
-    useNativeDeepseekProvider: useNativeDeepSeekProvider,
-    deepseekMaxTokens,
+    deepseekApiProtocol,
   });
 }
 
 export function buildRemoveOpenCodeConfigPreviewApi(endpoint: SavedEndpoint) {
   return invokeCommand<CliConfigPreview>("build_remove_opencode_config_preview", { endpoint });
-}
-
-export function buildRestoreOfficialDeepSeekConfigPreviewApi(endpoint: SavedEndpoint) {
-  return invokeCommand<CliConfigPreview>("build_restore_official_deepseek_config_preview", { endpoint });
 }
 
 export function buildRemoveDeepSeekProviderPreviewApi(endpoint: SavedEndpoint) {

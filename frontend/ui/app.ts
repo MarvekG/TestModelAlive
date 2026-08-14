@@ -2,7 +2,7 @@ import { Channel } from "@tauri-apps/api/core";
 import { translate, type Language } from "../i18n";
 import { addEndpointApi, loadEndpointsApi, deleteEndpointApi } from "../api/endpoints";
 import { fetchModelsApi, loadTestSettingsApi, saveTestSettingsApi, stopTestApi, testCliWithRealConfigApi, testModelsApi } from "../api/testModels";
-import { applyCliConfigApi, buildCliConfigPreviewApi, buildRemoveDeepSeekProviderPreviewApi, buildRemoveOpenCodeConfigPreviewApi, buildRestoreOfficialDeepSeekConfigPreviewApi, loadCliConfigBaselineItemsApi, restoreOriginalCliConfigApi } from "../api/cliConfig";
+import { applyCliConfigApi, buildCliConfigPreviewApi, buildRemoveDeepSeekProviderPreviewApi, buildRemoveOpenCodeConfigPreviewApi, loadCliConfigBaselineItemsApi, restoreOriginalCliConfigApi } from "../api/cliConfig";
 import type { CliConfigPreview, CliConfigTargetKind, SavedEndpoint, TestMessage, TestResult, TestSettings } from "../types";
 import { createInitialState } from "../state";
 import { bind, setBusy } from "../utils/dom";
@@ -92,7 +92,6 @@ export function initApp() {
     bind("open-test-settings", "click", () => openTestSettingsDialog(elements, successKeyword, testPrompt));
     bind("apply-codex", "click", () => applyCliConfig("codex"));
     bind("apply-deepseek", "click", () => applyCliConfig("deepseek"));
-    bind("restore-official-deepseek", "click", restoreOfficialDeepSeekConfig);
     bind("remove-deepseek-provider", "click", removeDeepSeekProvider);
     bind("apply-opencode", "click", () => applyCliConfig("opencode"));
     bind("remove-opencode", "click", removeOpenCodeConfig);
@@ -255,7 +254,6 @@ export function initApp() {
     elements.append1mLabel.classList.toggle("hidden", endpoint.type !== "claude");
     elements.applyCodex.classList.toggle("hidden", endpoint.type !== "codex");
     elements.applyDeepseek.classList.toggle("hidden", endpoint.type !== "deepseek");
-    elements.restoreOfficialDeepseek.classList.toggle("hidden", endpoint.type !== "deepseek");
     elements.removeDeepseekProvider.classList.toggle("hidden", endpoint.type !== "deepseek");
     elements.applyOpenCode.classList.toggle("hidden", endpoint.type !== "opencode");
     elements.removeOpenCode.classList.toggle("hidden", endpoint.type !== "opencode");
@@ -287,9 +285,8 @@ export function initApp() {
       if ((target === "opencode" || target === "deepseek") && !options) return;
       const defaultModel = options?.defaultModel ?? null;
       const timeouts = options?.timeouts ?? null;
-      const useNativeDeepSeekProvider = options?.useNativeDeepSeekProvider ?? false;
-      const deepseekMaxTokens = options?.deepseekMaxTokens ?? null;
-      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel, timeouts, useNativeDeepSeekProvider, deepseekMaxTokens);
+      const deepseekApiProtocol = options?.apiProtocol ?? null;
+      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel, timeouts, deepseekApiProtocol);
       if (!(await confirmCliConfigWarnings(preview))) return;
       const editedConfig = await showCliConfigPreviewDialog({ preview, models, t, isModalOpen: isTestPanelOpen, showAlert });
       if (!editedConfig) return;
@@ -363,10 +360,10 @@ export function initApp() {
         t,
         isModalOpen: isTestPanelOpen,
         showAlert,
-      }).then((options) => (options ? { ...options, useNativeDeepSeekProvider: false, deepseekMaxTokens: null } : null));
+      }).then((options) => (options ? { ...options, apiProtocol: null } : null));
     }
     if (target === "deepseek") {
-      const options = await chooseDeepSeekApplyOptions({ models, t, isModalOpen: isTestPanelOpen, showAlert });
+      const options = await chooseDeepSeekApplyOptions({ models, t, isModalOpen: isTestPanelOpen });
       return options ? { ...options, timeouts: null } : null;
     }
     return null;
@@ -435,14 +432,6 @@ export function initApp() {
     } finally {
       setApplyBusy(false);
     }
-  }
-
-  async function restoreOfficialDeepSeekConfig() {
-    await applyDeepSeekConfigOperation(
-      buildRestoreOfficialDeepSeekConfigPreviewApi,
-      t("restoreOfficialDeepSeekConfig"),
-      t("restoredOfficialDeepSeekConfig"),
-    );
   }
 
   async function removeDeepSeekProvider() {
@@ -718,7 +707,6 @@ export function initApp() {
   function setApplyBusy(busy: boolean) {
     elements.applyCodex.disabled = busy;
     elements.applyDeepseek.disabled = busy;
-    elements.restoreOfficialDeepseek.disabled = busy;
     elements.removeDeepseekProvider.disabled = busy;
     elements.applyOpenCode.disabled = busy;
     elements.removeOpenCode.disabled = busy;
