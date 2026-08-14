@@ -172,6 +172,18 @@ pub fn write_apply_history_store(
 }
 
 pub fn write_text_file(path: &Path, content: &str) -> Result<(), String> {
+    write_text_file_with_permissions(path, content, false)
+}
+
+pub fn write_owner_only_text_file(path: &Path, content: &str) -> Result<(), String> {
+    write_text_file_with_permissions(path, content, true)
+}
+
+fn write_text_file_with_permissions(
+    path: &Path,
+    content: &str,
+    owner_only: bool,
+) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
     }
@@ -182,6 +194,9 @@ pub fn write_text_file(path: &Path, content: &str) -> Result<(), String> {
     ));
     {
         let mut file = fs::File::create(&tmp).map_err(|err| err.to_string())?;
+        if owner_only {
+            set_owner_only_permissions(&tmp)?;
+        }
         file.write_all(content.as_bytes())
             .map_err(|err| err.to_string())?;
         file.sync_all().map_err(|err| err.to_string())?;
@@ -190,6 +205,18 @@ pub fn write_text_file(path: &Path, content: &str) -> Result<(), String> {
         fs::remove_file(path).map_err(|err| err.to_string())?;
     }
     fs::rename(&tmp, path).map_err(|err| err.to_string())
+}
+
+#[cfg(unix)]
+fn set_owner_only_permissions(path: &Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(|err| err.to_string())
+}
+
+#[cfg(not(unix))]
+fn set_owner_only_permissions(_path: &Path) -> Result<(), String> {
+    Ok(())
 }
 
 pub fn timestamp_id(prefix: &str) -> String {
@@ -347,6 +374,8 @@ mod tests {
     use serde_json::json;
 
     use super::remove_opencode_model_variants;
+    #[cfg(unix)]
+    use super::write_owner_only_text_file;
 
     #[test]
     fn requested_models_use_advertised_reasoning_variants() {
@@ -384,5 +413,34 @@ mod tests {
 
         assert!(remove_opencode_model_variants(&mut settings));
         assert!(settings.get("opencode_model_variants").is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn owner_only_text_files_use_mode_600() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after the Unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "test-model-alive-owner-only-{}-{timestamp}",
+            std::process::id()
+        ));
+
+        write_owner_only_text_file(&path, "api-key").expect("credential file should be written");
+
+        assert_eq!(
+            fs::metadata(&path)
+                .expect("credential file metadata should be readable")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+        fs::remove_file(path).expect("credential file should be removed");
     }
 }
