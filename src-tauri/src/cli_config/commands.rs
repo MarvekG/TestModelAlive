@@ -27,6 +27,7 @@ pub fn build_cli_config_preview(
     selected_models: Vec<String>,
     default_model: Option<String>,
     timeouts: Option<OpenCodeTimeoutOptions>,
+    use_native_deepseek_provider: Option<bool>,
 ) -> Result<CliConfigPreview, String> {
     build_preview(
         &app,
@@ -35,6 +36,7 @@ pub fn build_cli_config_preview(
         selected_models,
         default_model,
         timeouts,
+        use_native_deepseek_provider.unwrap_or(false),
     )
 }
 

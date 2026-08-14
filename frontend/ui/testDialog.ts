@@ -208,8 +208,9 @@ export function chooseDeepSeekApplyOptions(options: {
   models: string[];
   t: (key: string) => string;
   isModalOpen: () => boolean;
-}): Promise<string | null> {
+}): Promise<{ defaultModel: string; useNativeDeepSeekProvider: boolean } | null> {
   const { models, t, isModalOpen } = options;
+  const canUseNativeDeepSeekProvider = models.some((model) => model === "deepseek-v4-flash" || model === "deepseek-v4-pro");
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "choice-modal";
@@ -225,6 +226,14 @@ export function chooseDeepSeekApplyOptions(options: {
           </label>
           <small>${escapeHtml(t("deepSeekDefaultModelHint"))}</small>
         </section>
+        ${canUseNativeDeepSeekProvider ? `
+        <section class="opencode-option-card">
+          <label class="inline-check option-toggle">
+            <input data-field="useNativeDeepSeekProvider" type="checkbox" />
+            ${escapeHtml(t("deepSeekNativeProviderOption"))}
+          </label>
+          <small>${escapeHtml(t("deepSeekNativeProviderHint"))}</small>
+        </section>` : ""}
         <div class="actions choice-actions">
           <button data-action="confirm">${escapeHtml(t("confirm"))}</button>
           <button data-action="cancel" class="secondary">${escapeHtml(t("cancel"))}</button>
@@ -232,7 +241,8 @@ export function chooseDeepSeekApplyOptions(options: {
       </div>
     `;
     const modelSelect = overlay.querySelector<HTMLSelectElement>("select.model-select");
-    const finish = (value: string | null) => {
+    const useNativeDeepSeekProvider = overlay.querySelector<HTMLInputElement>('input[data-field="useNativeDeepSeekProvider"]');
+    const finish = (value: { defaultModel: string; useNativeDeepSeekProvider: boolean } | null) => {
       document.removeEventListener("keydown", onKeyDown);
       overlay.remove();
       document.body.classList.toggle("modal-open", isModalOpen());
@@ -246,7 +256,9 @@ export function chooseDeepSeekApplyOptions(options: {
     });
     overlay.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((button) => {
       button.addEventListener("click", () => {
-        if (button.dataset.action === "confirm") finish(modelSelect?.value ?? null);
+        if (button.dataset.action === "confirm" && modelSelect?.value) {
+          finish({ defaultModel: modelSelect.value, useNativeDeepSeekProvider: useNativeDeepSeekProvider?.checked ?? false });
+        }
         else finish(null);
       });
     });

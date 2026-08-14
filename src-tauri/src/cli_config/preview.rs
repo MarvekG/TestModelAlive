@@ -19,6 +19,7 @@ pub(crate) fn build_preview(
     selected_models: Vec<String>,
     default_model: Option<String>,
     timeouts: Option<OpenCodeTimeoutOptions>,
+    use_native_deepseek_provider: bool,
 ) -> Result<CliConfigPreview, String> {
     validate_cli_target(&endpoint, &target, &selected_models)?;
     let files = cli_target_files(&target)?;
@@ -48,6 +49,7 @@ pub(crate) fn build_preview(
                 &selected_models,
                 default_model,
                 &files,
+                use_native_deepseek_provider,
             )?;
             warnings = preview_warnings;
             files

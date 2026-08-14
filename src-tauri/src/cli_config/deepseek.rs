@@ -39,6 +39,7 @@ pub(crate) fn build_deepseek_preview_with_warnings(
     models: &[String],
     default_model: Option<String>,
     files: &[(String, PathBuf, String)],
+    use_native_deepseek_provider: bool,
 ) -> Result<(Vec<CliConfigPreviewFile>, Vec<CliConfigPreviewWarning>), String> {
     let default_model = select_default_model(models, default_model)?;
     let mut output = Vec::new();
@@ -46,8 +47,13 @@ pub(crate) fn build_deepseek_preview_with_warnings(
     for (file_id, path, language) in files {
         let content = match file_id.as_str() {
             "deepseek-settings" => {
-                let (content, overwritten_providers) =
-                    build_settings_content_with_overwrite(path, endpoint, models, &default_model)?;
+                let (content, overwritten_providers) = build_settings_content_with_overwrite(
+                    path,
+                    endpoint,
+                    models,
+                    &default_model,
+                    use_native_deepseek_provider,
+                )?;
                 for provider in overwritten_providers {
                     warnings.push(CliConfigPreviewWarning::DeepseekProviderOverwrite { provider });
                 }
@@ -71,7 +77,7 @@ pub(crate) fn build_settings_content(
     model: &str,
 ) -> Result<String, String> {
     let models = vec![model.to_string()];
-    Ok(build_settings_content_with_overwrite(path, endpoint, &models, model)?.0)
+    Ok(build_settings_content_with_overwrite(path, endpoint, &models, model, false)?.0)
 }
 
 fn build_settings_content_with_overwrite(
@@ -79,18 +85,25 @@ fn build_settings_content_with_overwrite(
     endpoint: &SavedEndpoint,
     models: &[String],
     default_model: &str,
+    use_native_deepseek_provider: bool,
 ) -> Result<(String, Vec<String>), String> {
     let mut root = read_yaml_mapping(path)?;
-    let direct_models = models
-        .iter()
-        .filter(|model| is_direct_deepseek_model(model))
-        .cloned()
-        .collect::<Vec<_>>();
-    let pi_models = models
-        .iter()
-        .filter(|model| !is_direct_deepseek_model(model))
-        .cloned()
-        .collect::<Vec<_>>();
+    let (direct_models, pi_models) = if use_native_deepseek_provider {
+        (
+            models
+                .iter()
+                .filter(|model| is_direct_deepseek_model(model))
+                .cloned()
+                .collect::<Vec<_>>(),
+            models
+                .iter()
+                .filter(|model| !is_direct_deepseek_model(model))
+                .cloned()
+                .collect::<Vec<_>>(),
+        )
+    } else {
+        (Vec::new(), models.to_vec())
+    };
     let provider_name = dsh_provider_name(endpoint);
     let mut overwritten_providers = Vec::new();
     if pi_models.is_empty() {
@@ -117,14 +130,15 @@ fn build_settings_content_with_overwrite(
     }
 
     let mut default_model_config = Mapping::new();
-    let default_provider = if is_direct_deepseek_model(default_model) {
-        DSH_DEEPSEEK_PROVIDER.to_string()
-    } else {
-        provider_name
-    };
+    let default_provider =
+        if use_native_deepseek_provider && is_direct_deepseek_model(default_model) {
+            DSH_DEEPSEEK_PROVIDER.to_string()
+        } else {
+            provider_name
+        };
     default_model_config.insert(yaml_key("provider"), Value::String(default_provider));
     default_model_config.insert(yaml_key("model"), Value::String(default_model.to_string()));
-    if is_direct_deepseek_model(default_model) {
+    if use_native_deepseek_provider && is_direct_deepseek_model(default_model) {
         default_model_config.insert(
             yaml_key("reasoningEffort"),
             Value::String("high".to_string()),
@@ -446,6 +460,7 @@ mod tests {
                 PathBuf::from("deepseek-preview-does-not-exist.yaml"),
                 "yaml".to_string(),
             )],
+            false,
         )
         .expect("preview should be generated");
         let value: serde_json::Value =
@@ -475,6 +490,7 @@ mod tests {
                 PathBuf::from("deepseek-preview-does-not-exist.yaml"),
                 "yaml".to_string(),
             )],
+            true,
         )
         .expect("preview should be generated");
         let value: serde_json::Value = serde_yaml::from_str(&files[0].content)
@@ -526,26 +542,29 @@ mod tests {
     }
 
     #[test]
-    fn direct_deepseek_models_replace_the_legacy_pi_ai_provider() {
-        let path = temporary_settings_path();
-        fs::write(
-            &path,
-            "llm-pi-ai:\n  providers:\n    tma-Example:\n      models:\n        - id: deepseek-v4-flash\n",
+    fn deepseek_v4_models_stay_in_pi_ai_without_native_selection() {
+        let content = build_settings_content(
+            Path::new("deepseek-settings-does-not-exist.yaml"),
+            &endpoint(),
+            "deepseek-v4-flash",
         )
-        .expect("test settings should be written");
-        let result = build_settings_content(&path, &endpoint(), "deepseek-v4-flash");
-        let _ = fs::remove_file(&path);
-        let content = result.expect("settings should be migrated");
+        .expect("settings should be generated");
         let value: serde_json::Value =
-            serde_yaml::from_str(&content).expect("migrated settings should be valid YAML");
+            serde_yaml::from_str(&content).expect("generated settings should be valid YAML");
 
-        assert!(value["llm-pi-ai"]["providers"].get("tma-Example").is_none());
         assert_eq!(
-            value["llm-deepseek"]["models"],
+            value["llm-pi-ai"]["providers"]["tma-Example"]["models"],
             json!([{
                 "id": "deepseek-v4-flash",
-                "contextWindow": 1_000_000
+                "contextWindow": 1_000_000,
+                "input": ["text"],
+                "reasoningEfforts": { "low": "low", "medium": "medium", "high": "high", "max": "max" }
             }])
+        );
+        assert!(value.get("llm-deepseek").is_none());
+        assert_eq!(
+            value["agent-default-model"],
+            json!({ "provider": "tma-Example", "model": "deepseek-v4-flash" })
         );
     }
 

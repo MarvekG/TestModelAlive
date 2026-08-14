@@ -283,7 +283,8 @@ export function initApp() {
       if ((target === "opencode" || target === "deepseek") && !options) return;
       const defaultModel = options?.defaultModel ?? null;
       const timeouts = options?.timeouts ?? null;
-      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel, timeouts);
+      const useNativeDeepSeekProvider = options?.useNativeDeepSeekProvider ?? false;
+      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel, timeouts, useNativeDeepSeekProvider);
       if (!(await confirmCliConfigWarnings(preview))) return;
       const editedConfig = await showCliConfigPreviewDialog({ preview, models, t, isModalOpen: isTestPanelOpen, showAlert });
       if (!editedConfig) return;
@@ -357,11 +358,11 @@ export function initApp() {
         t,
         isModalOpen: isTestPanelOpen,
         showAlert,
-      });
+      }).then((options) => (options ? { ...options, useNativeDeepSeekProvider: false } : null));
     }
     if (target === "deepseek") {
-      const defaultModel = await chooseDeepSeekApplyOptions({ models, t, isModalOpen: isTestPanelOpen });
-      return defaultModel ? { defaultModel, timeouts: null } : null;
+      const options = await chooseDeepSeekApplyOptions({ models, t, isModalOpen: isTestPanelOpen });
+      return options ? { ...options, timeouts: null } : null;
     }
     return null;
   }
