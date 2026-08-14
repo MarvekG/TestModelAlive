@@ -471,7 +471,15 @@ export function initApp() {
       const result = await applyCliConfigApi(testEndpoint, "deepseek", editedConfig);
       await showAlert(title, success, result.results.map((item) => item.path).join("\n"));
     } catch (error) {
-      alertError(title, error);
+      const message = String(error);
+      alertError(
+        title,
+        message === "deepseek_no_custom_config"
+          ? t("deepSeekNoCustomConfig")
+          : message === "deepseek_provider_not_found"
+            ? t("deepSeekProviderNotFound")
+            : message,
+      );
     } finally {
       setApplyBusy(false);
     }

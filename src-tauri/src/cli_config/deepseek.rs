@@ -12,6 +12,8 @@ const DSH_DEEPSEEK_PROVIDER: &str = "deepseek-official";
 const DSH_OFFICIAL_MAX_TOKENS: u64 = 384_000;
 const DSH_THIRD_PARTY_MAX_TOKENS: u64 = 131_072;
 const DSH_TEST_MAX_TOKENS: u64 = DSH_THIRD_PARTY_MAX_TOKENS;
+const DEEPSEEK_NO_CUSTOM_CONFIG: &str = "deepseek_no_custom_config";
+const DEEPSEEK_PROVIDER_NOT_FOUND: &str = "deepseek_provider_not_found";
 
 pub(crate) fn dsh_provider_name(endpoint: &SavedEndpoint) -> String {
     dsh_provider_name_for_endpoint_name(&endpoint.name)
@@ -151,9 +153,7 @@ fn restore_official_settings_content(path: &Path) -> Result<String, String> {
     let removed_provider = root.remove(&yaml_key("llm-deepseek")).is_some();
     let removed_default = root.remove(&yaml_key("agent-default-model")).is_some();
     if !removed_provider && !removed_default {
-        return Err(
-            "DeepSeek Harness has no custom llm-deepseek configuration to restore".to_string(),
-        );
+        return Err(DEEPSEEK_NO_CUSTOM_CONFIG.to_string());
     }
     serialize_yaml_mapping(&root)
 }
@@ -165,9 +165,7 @@ fn remove_deepseek_provider_settings_content(
     let mut root = read_yaml_mapping(path)?;
     let provider_name = dsh_provider_name(endpoint);
     if !remove_pi_ai_provider(&mut root, &provider_name)? {
-        return Err(format!(
-            "No DeepSeek Harness provider named {provider_name} was found"
-        ));
+        return Err(DEEPSEEK_PROVIDER_NOT_FOUND.to_string());
     }
     remove_default_model_for_provider(&mut root, &provider_name);
     serialize_yaml_mapping(&root)
@@ -560,7 +558,8 @@ mod tests {
         build_deepseek_preview_with_warnings, build_settings_content, build_test_settings_content,
         dsh_api_key_env, remove_deepseek_provider_credentials_content,
         remove_deepseek_provider_settings_content, restore_official_settings_content,
-        DSH_TEST_MAX_TOKENS, DSH_THIRD_PARTY_MAX_TOKENS,
+        DEEPSEEK_NO_CUSTOM_CONFIG, DEEPSEEK_PROVIDER_NOT_FOUND, DSH_TEST_MAX_TOKENS,
+        DSH_THIRD_PARTY_MAX_TOKENS,
     };
     use crate::model_metadata::model_limit;
     use crate::models::SavedEndpoint;
@@ -781,6 +780,16 @@ mod tests {
     }
 
     #[test]
+    fn restore_official_config_returns_a_code_when_nothing_can_be_restored() {
+        let path = temporary_settings_path();
+
+        assert_eq!(
+            restore_official_settings_content(&path),
+            Err(DEEPSEEK_NO_CUSTOM_CONFIG.to_string())
+        );
+    }
+
+    #[test]
     fn remove_deepseek_provider_preserves_other_configuration() {
         let path = temporary_settings_path();
         fs::write(
@@ -801,6 +810,16 @@ mod tests {
         );
         assert_eq!(value["llm-deepseek"]["apiKeyEnv"], json!("TMA_DSH_API_KEY"));
         assert!(value.get("agent-default-model").is_none());
+    }
+
+    #[test]
+    fn remove_deepseek_provider_returns_a_code_when_it_is_missing() {
+        let path = temporary_settings_path();
+
+        assert_eq!(
+            remove_deepseek_provider_settings_content(&path, &endpoint()),
+            Err(DEEPSEEK_PROVIDER_NOT_FOUND.to_string())
+        );
     }
 
     #[test]
