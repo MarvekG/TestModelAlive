@@ -213,9 +213,6 @@ fn direct_deepseek_definition(endpoint: &SavedEndpoint, models: &[String]) -> Va
                 Value::from(context_window),
             );
         }
-        if let Some(max_tokens) = limit.get("output").and_then(|value| value.as_u64()) {
-            provider.insert(yaml_key("maxTokens"), Value::from(max_tokens));
-        }
     }
     provider.insert(yaml_key("models"), Value::Sequence(model_entries));
     Value::Mapping(provider)
@@ -227,9 +224,6 @@ fn direct_deepseek_model_definition(model: &str) -> Value {
     if let Some(limit) = model_limit(model) {
         if let Some(context_window) = limit.get("context").and_then(|value| value.as_u64()) {
             model_entry.insert(yaml_key("contextWindow"), Value::from(context_window));
-        }
-        if let Some(max_tokens) = limit.get("output").and_then(|value| value.as_u64()) {
-            model_entry.insert(yaml_key("maxTokens"), Value::from(max_tokens));
         }
     }
     Value::Mapping(model_entry)
@@ -246,9 +240,6 @@ fn model_definition(model: &str) -> Value {
         // Reuse the model capabilities from OpenCode, but emit DSH's YAML schema.
         if let Some(context_window) = profile.context_window {
             model_entry.insert(yaml_key("contextWindow"), Value::from(context_window));
-        }
-        if let Some(max_tokens) = profile.max_tokens {
-            model_entry.insert(yaml_key("maxTokens"), Value::from(max_tokens));
         }
         model_entry.insert(
             yaml_key("input"),
@@ -276,21 +267,15 @@ fn model_definition(model: &str) -> Value {
 
 struct ModelProfile {
     context_window: Option<u64>,
-    max_tokens: Option<u64>,
     input: Vec<String>,
     reasoning_efforts: Vec<(String, Option<String>)>,
 }
 
 fn known_model_profile(model: &str) -> Option<ModelProfile> {
-    let (context_window, max_tokens) = model_limit(model)
-        .and_then(|limit| {
-            Some((
-                limit.get("context")?.as_u64()?,
-                limit.get("output")?.as_u64()?,
-            ))
-        })
-        .map(|(context_window, max_tokens)| (Some(context_window), Some(max_tokens)))
-        .unwrap_or((None, None));
+    let context_window = model_limit(model)
+        .and_then(|limit| limit.get("context")?.as_u64())
+        .map(Some)
+        .unwrap_or(None);
     let mut reasoning_efforts: Vec<(String, Option<String>)> = opencode_model_variants()
         .get(model)
         .and_then(serde_json::Value::as_object)
@@ -310,12 +295,11 @@ fn known_model_profile(model: &str) -> Option<ModelProfile> {
     if reasoning_efforts.iter().all(|(level, _)| level == "off") {
         reasoning_efforts.clear();
     }
-    if context_window.is_none() && max_tokens.is_none() && reasoning_efforts.is_empty() {
+    if context_window.is_none() && reasoning_efforts.is_empty() {
         return None;
     }
     Some(ModelProfile {
         context_window,
-        max_tokens,
         input: dsh_default_input().to_vec(),
         reasoning_efforts,
     })
@@ -513,22 +497,17 @@ mod tests {
             value["llm-deepseek"]["defaultContextWindow"], limit["context"],
             "the direct adapter should reuse the model context limit"
         );
-        assert_eq!(
-            value["llm-deepseek"]["maxTokens"], limit["output"],
-            "the direct adapter should reuse the model output limit"
-        );
+        assert!(value["llm-deepseek"].get("maxTokens").is_none());
         assert_eq!(
             direct_models,
             &json!([
                 {
                     "id": "deepseek-v4-flash",
-                    "contextWindow": 1_000_000,
-                    "maxTokens": 384_000
+                    "contextWindow": 1_000_000
                 },
                 {
                     "id": "deepseek-v4-pro",
-                    "contextWindow": 1_000_000,
-                    "maxTokens": 384_000
+                    "contextWindow": 1_000_000
                 }
             ])
         );
@@ -565,8 +544,7 @@ mod tests {
             value["llm-deepseek"]["models"],
             json!([{
                 "id": "deepseek-v4-flash",
-                "contextWindow": 1_000_000,
-                "maxTokens": 384_000
+                "contextWindow": 1_000_000
             }])
         );
     }

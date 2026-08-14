@@ -129,7 +129,7 @@ Windows 下对应：
 - 在 DeepSeek Harness 类型端点中选择一个或多个模型后，可点击“应用到 DeepSeek Harness”，并选择其中一个默认模型。
 - 应用会合并 DSH 的 `settings.yaml` 和 `.credentials.yaml`，路径为 `DSH_HOME`（如已设置）或默认的 `~/.dsh/`。
 - `deepseek-v4-flash` 和 `deepseek-v4-pro` 会写入原生的 `llm-deepseek` 配置，并使用 `deepseek-official` 作为 `agent-default-model` provider；其他模型继续写入 OpenAI 兼容的 `tma-<端点名称>` provider。
-- 会复用内嵌的模型上下文和最大输出值；`llm-pi-ai` 模型还会转换 OpenCode 推理档位，未知模型保留 DSH 默认能力。
+- 会复用内嵌的模型上下文；不会默认写入最大输出值，`llm-pi-ai` 模型还会转换 OpenCode 推理档位，未知模型保留 DSH 默认能力。
 - 模型元数据内嵌在应用的 `src-tauri/src/model_metadata.json`，不会写入 `~/.TestModelAlive/settings.json`；启动时会自动移除旧的 `opencode_model_variants` 字段。
 - DeepSeek Harness 目前处于开发预览阶段，配置格式可能会有破坏性变更；升级 DSH 后请先执行一次“测试当前配置”。
 

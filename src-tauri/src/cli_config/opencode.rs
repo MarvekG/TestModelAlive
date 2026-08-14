@@ -186,7 +186,7 @@ mod tests {
             Some(&json!({
                 "id": "gpt-5.6-sol",
                 "name": "gpt-5.6-sol-fast",
-                "limit": { "context": 1050000, "input": 922000, "output": 128000 },
+                "limit": { "context": 1050000, "input": 922000 },
                 "variants": { "high": { "reasoningEffort": "high" } },
                 "options": { "serviceTier": "priority" }
             }))
@@ -232,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn known_model_gets_official_limit() {
+    fn known_model_gets_context_limit_without_default_output_limit() {
         let entries = build_model_entries(
             &["claude-opus-4-6".to_string()],
             &BTreeMap::new(),
@@ -243,7 +243,7 @@ mod tests {
             entries
                 .get("claude-opus-4-6")
                 .and_then(|entry| entry.get("limit")),
-            Some(&json!({ "context": 1000000, "output": 128000 }))
+            Some(&json!({ "context": 1000000 }))
         );
     }
 
