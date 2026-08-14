@@ -2,8 +2,8 @@ import { Channel } from "@tauri-apps/api/core";
 import { translate, type Language } from "../i18n";
 import { addEndpointApi, loadEndpointsApi, deleteEndpointApi } from "../api/endpoints";
 import { fetchModelsApi, loadTestSettingsApi, saveTestSettingsApi, stopTestApi, testCliWithRealConfigApi, testModelsApi } from "../api/testModels";
-import { applyCliConfigApi, buildCliConfigPreviewApi, buildRemoveOpenCodeConfigPreviewApi, loadCliConfigBaselineItemsApi, restoreOriginalCliConfigApi } from "../api/cliConfig";
-import type { CliConfigTargetKind, SavedEndpoint, TestMessage, TestResult, TestSettings } from "../types";
+import { applyCliConfigApi, buildCliConfigPreviewApi, buildRemoveDeepSeekProviderPreviewApi, buildRemoveOpenCodeConfigPreviewApi, buildRestoreOfficialDeepSeekConfigPreviewApi, loadCliConfigBaselineItemsApi, restoreOriginalCliConfigApi } from "../api/cliConfig";
+import type { CliConfigPreview, CliConfigTargetKind, SavedEndpoint, TestMessage, TestResult, TestSettings } from "../types";
 import { createInitialState } from "../state";
 import { bind, setBusy } from "../utils/dom";
 import { maskKey } from "../utils/mask";
@@ -13,7 +13,7 @@ import { clearEndpointForm, readEndpointForm } from "./endpointForm";
 import { endpointTypeLabel, renderEndpointRows, setEndpointChecks as updateEndpointChecks } from "./endpointList";
 import { invertSelection, renderCheckList, setSelection } from "./modelList";
 import { appendTimestampedLog, renderTestLogs as renderLogPanel } from "./logPanel";
-import { chooseFetchedTestModels, chooseOpenCodeApplyOptions, renderResults as renderResultRows } from "./testDialog";
+import { chooseDeepSeekApplyOptions, chooseFetchedTestModels, chooseOpenCodeApplyOptions, renderResults as renderResultRows } from "./testDialog";
 import { closeTestSettingsDialog, openTestSettingsDialog, resetTestSettingsDialog } from "./testSettingsDialog";
 import { cliTargetLabel, showApplyCliConfigResultDialog, showCliConfigPreviewDialog } from "./cliConfigDialog";
 import { restoreResultDetail, showRestoreConfigDialog } from "./restoreConfigDialog";
@@ -91,6 +91,9 @@ export function initApp() {
     bind("stop-test", "click", stopTests);
     bind("open-test-settings", "click", () => openTestSettingsDialog(elements, successKeyword, testPrompt));
     bind("apply-codex", "click", () => applyCliConfig("codex"));
+    bind("apply-deepseek", "click", () => applyCliConfig("deepseek"));
+    bind("restore-official-deepseek", "click", restoreOfficialDeepSeekConfig);
+    bind("remove-deepseek-provider", "click", removeDeepSeekProvider);
     bind("apply-opencode", "click", () => applyCliConfig("opencode"));
     bind("remove-opencode", "click", removeOpenCodeConfig);
     bind("apply-claude", "click", () => applyCliConfig("claude"));
@@ -251,6 +254,9 @@ export function initApp() {
     elements.testStatus.textContent = t("notStarted");
     elements.append1mLabel.classList.toggle("hidden", endpoint.type !== "claude");
     elements.applyCodex.classList.toggle("hidden", endpoint.type !== "codex");
+    elements.applyDeepseek.classList.toggle("hidden", endpoint.type !== "deepseek");
+    elements.restoreOfficialDeepseek.classList.toggle("hidden", endpoint.type !== "deepseek");
+    elements.removeDeepseekProvider.classList.toggle("hidden", endpoint.type !== "deepseek");
     elements.applyOpenCode.classList.toggle("hidden", endpoint.type !== "opencode");
     elements.removeOpenCode.classList.toggle("hidden", endpoint.type !== "opencode");
     elements.applyClaude.classList.toggle("hidden", endpoint.type !== "claude");
@@ -266,28 +272,31 @@ export function initApp() {
       return;
     }
     let models = selectedTestModels();
-    if (target === "opencode" && models.length === 0) {
-      await showAlert(cliTargetLabel(target), t("selectAtLeastOneModelForOpenCode"));
+    if ((target === "opencode" || target === "deepseek") && models.length === 0) {
+      await showAlert(cliTargetLabel(target), t(target === "deepseek" ? "selectAtLeastOneModelForDeepSeek" : "selectAtLeastOneModelForOpenCode"));
       return;
     }
-    if (target !== "opencode" && models.length !== 1) {
+    if ((target === "codex" || target === "claude") && models.length !== 1) {
       await showAlert(cliTargetLabel(target), t("selectExactlyOneModelForCli"));
       return;
     }
     setApplyBusy(true);
     try {
       models = await modelsForCliConfig(target, models);
-      const options = await chooseOpenCodeOptions(target, models);
-      if (target === "opencode" && !options) return;
+      const options = await chooseCliConfigOptions(target, models);
+      if ((target === "opencode" || target === "deepseek") && !options) return;
       const defaultModel = options?.defaultModel ?? null;
       const timeouts = options?.timeouts ?? null;
-      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel, timeouts);
+      const useNativeDeepSeekProvider = options?.useNativeDeepSeekProvider ?? false;
+      const deepseekMaxTokens = options?.deepseekMaxTokens ?? null;
+      const preview = await buildCliConfigPreviewApi(testEndpoint, target, models, defaultModel, timeouts, useNativeDeepSeekProvider, deepseekMaxTokens);
       if (!(await confirmCliConfigWarnings(preview))) return;
       const editedConfig = await showCliConfigPreviewDialog({ preview, models, t, isModalOpen: isTestPanelOpen, showAlert });
       if (!editedConfig) return;
       const result = await applyCliConfigApi(testEndpoint, target, editedConfig);
       const action = await showApplyCliConfigResultDialog(result, t, isTestPanelOpen);
-      if (action === "test") await testCliWithRealConfig(target, models);
+      const realConfigModels = target === "deepseek" && defaultModel ? [defaultModel] : models;
+      if (action === "test") await testCliWithRealConfig(target, realConfigModels);
     } catch (error) {
       alertError(t("applyCliConfigFailed"), error);
     } finally {
@@ -296,15 +305,27 @@ export function initApp() {
   }
 
   async function confirmCliConfigWarnings(preview: Awaited<ReturnType<typeof buildCliConfigPreviewApi>>) {
-    const overwrite = preview.warnings.find((warning) => warning.kind === "open_code_provider_overwrite");
-    if (!overwrite) return true;
-    return showConfirm(
-      cliTargetLabel(preview.target),
-      t("confirmOverwriteOpenCodeProvider", { provider: overwrite.provider }),
-      t("overwrite"),
-      overwrite.provider,
-      "danger",
-    );
+    const openCodeOverwrite = preview.warnings.find((warning) => warning.kind === "open_code_provider_overwrite");
+    if (openCodeOverwrite?.kind === "open_code_provider_overwrite") {
+      return showConfirm(
+        cliTargetLabel(preview.target),
+        t("confirmOverwriteOpenCodeProvider", { provider: openCodeOverwrite.provider }),
+        t("overwrite"),
+        openCodeOverwrite.provider,
+        "danger",
+      );
+    }
+    const deepseekOverwrite = preview.warnings.find((warning) => warning.kind === "deepseek_provider_overwrite");
+    if (deepseekOverwrite?.kind === "deepseek_provider_overwrite") {
+      return showConfirm(
+        cliTargetLabel(preview.target),
+        t("confirmOverwriteDeepSeekProvider", { provider: deepseekOverwrite.provider }),
+        t("overwrite"),
+        deepseekOverwrite.provider,
+        "danger",
+      );
+    }
+    return true;
   }
 
   async function modelsForCliConfig(target: CliConfigTargetKind, models: string[]) {
@@ -324,7 +345,7 @@ export function initApp() {
     const onEvent = createTestEventChannel({ logToPanel: true, onFinished: () => setApplyBusy(false) });
     try {
       await testCliWithRealConfigApi(
-        { target, endpoint_name: testEndpoint.name, models, timeout: Number(elements.testTimeout.value || 240), prompt: testPrompt, success_keyword: successKeyword },
+        { target, endpoint_name: testEndpoint.name, endpoint_id: testEndpoint.id, models, timeout: Number(elements.testTimeout.value || 240), prompt: testPrompt, success_keyword: successKeyword },
         onEvent,
       );
     } catch (error) {
@@ -334,15 +355,21 @@ export function initApp() {
     }
   }
 
-  async function chooseOpenCodeOptions(target: CliConfigTargetKind, models: string[]) {
-    if (target !== "opencode") return null;
-    return chooseOpenCodeApplyOptions({
-      models,
-      defaultTimeoutSeconds: Number(elements.testTimeout.value || 240),
-      t,
-      isModalOpen: isTestPanelOpen,
-      showAlert,
-    });
+  async function chooseCliConfigOptions(target: CliConfigTargetKind, models: string[]) {
+    if (target === "opencode") {
+      return chooseOpenCodeApplyOptions({
+        models,
+        defaultTimeoutSeconds: Number(elements.testTimeout.value || 240),
+        t,
+        isModalOpen: isTestPanelOpen,
+        showAlert,
+      }).then((options) => (options ? { ...options, useNativeDeepSeekProvider: false, deepseekMaxTokens: null } : null));
+    }
+    if (target === "deepseek") {
+      const options = await chooseDeepSeekApplyOptions({ models, t, isModalOpen: isTestPanelOpen, showAlert });
+      return options ? { ...options, timeouts: null } : null;
+    }
+    return null;
   }
 
   async function runRealConfigTests() {
@@ -357,7 +384,11 @@ export function initApp() {
       await showAlert(cliTargetLabel(target), t("selectAtLeastOneModelForOpenCode"));
       return;
     }
-    if (target !== "opencode" && models.length !== 1) {
+    if (target === "deepseek" && models.length !== 1) {
+      await showAlert(cliTargetLabel(target), t("selectExactlyOneModelForDeepSeekConfigTest"));
+      return;
+    }
+    if ((target === "codex" || target === "claude") && models.length !== 1) {
       await showAlert(cliTargetLabel(target), t("selectExactlyOneModelForCli"));
       return;
     }
@@ -401,6 +432,54 @@ export function initApp() {
       await showAlert(t("removeFromOpenCode"), t("removedFromOpenCode"), result.results.map((item) => item.path).join("\n"));
     } catch (error) {
       alertError(t("removeOpenCodeFailed"), error);
+    } finally {
+      setApplyBusy(false);
+    }
+  }
+
+  async function restoreOfficialDeepSeekConfig() {
+    await applyDeepSeekConfigOperation(
+      buildRestoreOfficialDeepSeekConfigPreviewApi,
+      t("restoreOfficialDeepSeekConfig"),
+      t("restoredOfficialDeepSeekConfig"),
+    );
+  }
+
+  async function removeDeepSeekProvider() {
+    await applyDeepSeekConfigOperation(
+      buildRemoveDeepSeekProviderPreviewApi,
+      t("removeDeepSeekProvider"),
+      t("removedDeepSeekProvider"),
+    );
+  }
+
+  async function applyDeepSeekConfigOperation(
+    buildPreview: (endpoint: SavedEndpoint) => Promise<CliConfigPreview>,
+    title: string,
+    success: string,
+  ) {
+    if (!testEndpoint || testEndpoint.type !== "deepseek") return;
+    if (testRunning) {
+      await showAlert(title, t("testStillRunning"));
+      return;
+    }
+    setApplyBusy(true);
+    try {
+      const preview = await buildPreview(testEndpoint);
+      const editedConfig = await showCliConfigPreviewDialog({ preview, models: testEndpoint.models, t, isModalOpen: isTestPanelOpen, showAlert, title });
+      if (!editedConfig) return;
+      const result = await applyCliConfigApi(testEndpoint, "deepseek", editedConfig);
+      await showAlert(title, success, result.results.map((item) => item.path).join("\n"));
+    } catch (error) {
+      const message = String(error);
+      alertError(
+        title,
+        message === "deepseek_no_custom_config"
+          ? t("deepSeekNoCustomConfig")
+          : message === "deepseek_provider_not_found"
+            ? t("deepSeekProviderNotFound")
+            : message,
+      );
     } finally {
       setApplyBusy(false);
     }
@@ -638,6 +717,9 @@ export function initApp() {
 
   function setApplyBusy(busy: boolean) {
     elements.applyCodex.disabled = busy;
+    elements.applyDeepseek.disabled = busy;
+    elements.restoreOfficialDeepseek.disabled = busy;
+    elements.removeDeepseekProvider.disabled = busy;
     elements.applyOpenCode.disabled = busy;
     elements.removeOpenCode.disabled = busy;
     elements.applyClaude.disabled = busy;

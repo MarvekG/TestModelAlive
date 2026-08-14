@@ -27,6 +27,7 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
             <option value="codex">codex</option>
             <option value="claude">claude</option>
             <option value="opencode">opencode</option>
+            <option value="deepseek">deepseek</option>
           </select>
         </label>
         <label id="opencode-sdk-label" class="opencode-sdk-field hidden"><span>${t("openCodeSdkPackage")}</span>
@@ -68,6 +69,7 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
                     <option value="codex">Codex</option>
                     <option value="claude">Claude</option>
                     <option value="opencode">OpenCode</option>
+                    <option value="deepseek">DeepSeek Harness</option>
                   </select>
                 </th>
                 <th>URL</th>
@@ -166,6 +168,9 @@ export function renderApp(root: HTMLElement, language: Language, t: Translator) 
           <button id="stop-test" class="danger" disabled>${t("stop")}</button>
           <button id="open-test-settings" class="secondary">${t("testSettings")}</button>
           <button id="apply-codex" class="secondary hidden">${t("applyToCodex")}</button>
+          <button id="apply-deepseek" class="secondary hidden">${t("applyToDeepSeek")}</button>
+          <button id="restore-official-deepseek" class="secondary hidden">${t("restoreOfficialDeepSeekConfig")}</button>
+          <button id="remove-deepseek-provider" class="danger hidden">${t("removeDeepSeekProvider")}</button>
           <button id="apply-opencode" class="secondary hidden">${t("applyToOpenCode")}</button>
           <button id="remove-opencode" class="secondary hidden">${t("removeFromOpenCode")}</button>
           <button id="apply-claude" class="secondary hidden">${t("applyToClaude")}</button>

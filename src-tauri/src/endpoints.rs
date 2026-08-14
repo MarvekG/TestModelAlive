@@ -126,10 +126,10 @@ fn validate_endpoint_name(name: &str) -> Result<(), String> {
 }
 
 fn validate_endpoint_type(endpoint_type: &str) -> Result<(), String> {
-    if matches!(endpoint_type, "codex" | "claude" | "opencode") {
+    if matches!(endpoint_type, "codex" | "claude" | "opencode" | "deepseek") {
         return Ok(());
     }
-    Err("type must be codex, claude, or opencode".to_string())
+    Err("type must be codex, claude, opencode, or deepseek".to_string())
 }
 
 fn normalize_opencode_sdk_package(
@@ -175,7 +175,10 @@ fn fetch_endpoint_models(
     timeout: u64,
 ) -> Result<Vec<String>, String> {
     let base_url = endpoint.base_url.trim_end_matches('/');
-    let url = if matches!(endpoint.endpoint_type.as_str(), "codex" | "opencode") {
+    let url = if matches!(
+        endpoint.endpoint_type.as_str(),
+        "codex" | "opencode" | "deepseek"
+    ) {
         format!("{base_url}/models")
     } else if base_url.ends_with("/v1") {
         format!("{base_url}/models")
@@ -230,7 +233,10 @@ fn fetch_models_from_url(
     url: &str,
 ) -> Result<Vec<String>, String> {
     let mut request = client.get(url).header("Accept", "application/json");
-    if matches!(endpoint.endpoint_type.as_str(), "codex" | "opencode") {
+    if matches!(
+        endpoint.endpoint_type.as_str(),
+        "codex" | "opencode" | "deepseek"
+    ) {
         request = request.header("Authorization", format!("Bearer {}", endpoint.api_key));
     } else {
         request = request

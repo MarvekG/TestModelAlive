@@ -7,12 +7,13 @@ use tauri::Manager;
 
 pub(crate) mod claude;
 pub(crate) mod codex;
+pub(crate) mod deepseek;
 pub(crate) mod opencode;
 pub(crate) mod process;
 
 use crate::cli_config::types::CliConfigTargetKind;
+use crate::model_metadata::opencode_model_variants;
 use crate::models::{SavedEndpoint, TestMessage, TestModelsRequest, TestResult};
-use crate::settings::read_opencode_model_variants;
 use process::{emit_test_log, run_command, stop_requested, terminate_child, TestCommand};
 
 #[derive(Default)]
@@ -25,6 +26,7 @@ pub struct AppState {
 pub struct RealCliTestRequest {
     pub target: CliConfigTargetKind,
     pub endpoint_name: Option<String>,
+    pub endpoint_id: Option<String>,
     pub models: Vec<String>,
     pub timeout: u64,
     pub prompt: String,
@@ -120,6 +122,7 @@ pub fn test_cli_with_real_config(
     on_event: Channel<TestMessage>,
 ) -> Result<(), String> {
     validate_real_cli_test_request(&request)?;
+    let models = real_config_models(&request)?;
     *state.stop_requested.lock().map_err(|err| err.to_string())? = false;
     let app_handle = app.clone();
     std::thread::spawn(move || {
@@ -132,7 +135,7 @@ pub fn test_cli_with_real_config(
                 request.target.as_str()
             ),
         );
-        for model in request.models {
+        for model in models {
             if stop_requested(&state) {
                 break;
             }
@@ -140,6 +143,7 @@ pub fn test_cli_with_real_config(
             let command = real_config_command(
                 &request.target,
                 request.endpoint_name.as_deref(),
+                request.endpoint_id.as_deref(),
                 &model,
                 &request.prompt,
             );
@@ -200,9 +204,9 @@ fn run_model_test(
         "codex" => codex::prepare_codex(app, endpoint, model, prompt)?,
         "claude" => claude::prepare_claude(app, endpoint, model, prompt)?,
         "opencode" => {
-            let model_variants = read_opencode_model_variants(app)?;
-            opencode::prepare_opencode(app, endpoint, model, prompt, &model_variants)?
+            opencode::prepare_opencode(app, endpoint, model, prompt, opencode_model_variants())?
         }
+        "deepseek" => deepseek::prepare_deepseek(app, endpoint, model, prompt)?,
         _ => {
             return Err(format!(
                 "unsupported endpoint type: {}",
@@ -222,6 +226,7 @@ fn run_model_test(
 fn real_config_command(
     target: &CliConfigTargetKind,
     endpoint_name: Option<&str>,
+    _endpoint_id: Option<&str>,
     model: &str,
     prompt: &str,
 ) -> TestCommand {
@@ -231,16 +236,42 @@ fn real_config_command(
         CliConfigTargetKind::Opencode => {
             opencode::real_config_command(endpoint_name.unwrap_or(""), model, prompt)
         }
+        CliConfigTargetKind::Deepseek => {
+            deepseek::real_config_command(endpoint_name.unwrap_or(""), prompt)
+        }
     }
+}
+
+fn real_config_models(request: &RealCliTestRequest) -> Result<Vec<String>, String> {
+    if matches!(request.target, CliConfigTargetKind::Deepseek) {
+        return Ok(vec![deepseek::configured_default_model(
+            request.endpoint_name.as_deref().unwrap_or(""),
+        )?]);
+    }
+    Ok(request.models.clone())
 }
 
 fn validate_real_cli_test_request(request: &RealCliTestRequest) -> Result<(), String> {
     match request.target {
-        CliConfigTargetKind::Codex | CliConfigTargetKind::Claude => {
+        CliConfigTargetKind::Codex
+        | CliConfigTargetKind::Claude
+        | CliConfigTargetKind::Deepseek => {
             if request.models.len() != 1 {
                 return Err(
-                    "Codex and Claude real config tests require exactly one selected model"
+                    "Codex, Claude, and DeepSeek Harness real config tests require exactly one selected model"
                         .to_string(),
+                );
+            }
+            if matches!(request.target, CliConfigTargetKind::Deepseek)
+                && request
+                    .endpoint_name
+                    .as_deref()
+                    .unwrap_or("")
+                    .trim()
+                    .is_empty()
+            {
+                return Err(
+                    "DeepSeek Harness real config test requires an endpoint name".to_string(),
                 );
             }
         }

@@ -5,6 +5,7 @@ import { showChoiceDialog } from "./modal";
 export function cliTargetLabel(target: CliConfigTargetKind) {
   if (target === "codex") return "Codex";
   if (target === "claude") return "Claude";
+  if (target === "deepseek") return "DeepSeek Harness";
   return "OpenCode";
 }
 
