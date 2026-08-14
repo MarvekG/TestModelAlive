@@ -232,7 +232,7 @@ export function chooseDeepSeekApplyOptions(options: {
             <input data-field="useNativeDeepSeekProvider" type="checkbox" />
             ${escapeHtml(t("deepSeekNativeProviderOption"))}
           </label>
-          <small>${escapeHtml(t("deepSeekNativeProviderHint"))}</small>
+          <small>${escapeHtml(t("deepSeekNativeProviderReason"))} <strong>${escapeHtml(t("deepSeekNativeProviderWarning"))}</strong></small>
         </section>` : ""}
         <div class="actions choice-actions">
           <button data-action="confirm">${escapeHtml(t("confirm"))}</button>
