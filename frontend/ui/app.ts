@@ -1,7 +1,7 @@
 import { Channel } from "@tauri-apps/api/core";
 import { translate, type Language } from "../i18n";
 import { addEndpointApi, loadEndpointsApi, deleteEndpointApi } from "../api/endpoints";
-import { fetchModelsApi, loadTestSettingsApi, saveTestSettingsApi, stopTestApi, testCliWithRealConfigApi, testModelsApi } from "../api/testModels";
+import { fetchModelsApi, loadTestSettingsApi, refreshModelMetadataApi, saveTestSettingsApi, stopTestApi, testCliWithRealConfigApi, testModelsApi } from "../api/testModels";
 import { applyCliConfigApi, buildCliConfigPreviewApi, buildRemoveDeepSeekProviderPreviewApi, buildRemoveOpenCodeConfigPreviewApi, loadCliConfigBaselineItemsApi, restoreOriginalCliConfigApi } from "../api/cliConfig";
 import type { CliConfigPreview, CliConfigTargetKind, SavedEndpoint, TestMessage, TestResult, TestSettings } from "../types";
 import { createInitialState } from "../state";
@@ -240,6 +240,9 @@ export function initApp() {
   function openTestPanel() {
     const endpoint = selectedEndpoint();
     if (!endpoint) return;
+    void refreshModelMetadataApi().catch((error) => {
+      console.warn("could not refresh models.dev metadata", error);
+    });
     testEndpoint = endpoint;
     testSelection = new Set(endpoint.models);
     testResults = [];

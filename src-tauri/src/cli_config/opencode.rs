@@ -1,11 +1,11 @@
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::cli_config::types::{
     CliConfigPreviewFile, CliConfigPreviewWarning, OpenCodeTimeoutOptions,
 };
+use crate::model_metadata::{model_limit, opencode_model_variants};
 use crate::models::SavedEndpoint;
 
 use super::preview::{parse_jsonc_object, preview_file};
@@ -16,7 +16,6 @@ pub(crate) fn build_opencode_preview_with_warnings(
     files: &[(String, PathBuf, String)],
     default_model: Option<String>,
     timeouts: Option<OpenCodeTimeoutOptions>,
-    model_variants: &BTreeMap<String, Value>,
 ) -> Result<(Vec<CliConfigPreviewFile>, Vec<CliConfigPreviewWarning>), String> {
     let (file_id, path, language) = files
         .first()
@@ -65,11 +64,7 @@ pub(crate) fn build_opencode_preview_with_warnings(
         serde_json::json!({
             "npm": endpoint.opencode_sdk_package.as_str(),
             "options": options,
-            "models": build_model_entries(
-                models,
-                model_variants,
-                &endpoint.opencode_sdk_package,
-            )
+            "models": build_model_entries(models, &endpoint.opencode_sdk_package)
         }),
     );
     if let Some(model) = default_model {
@@ -96,16 +91,12 @@ pub(crate) fn build_opencode_preview_with_warnings(
 
 pub(crate) fn build_model_entries(
     models: &[String],
-    model_variants: &BTreeMap<String, Value>,
     sdk_package: &str,
 ) -> serde_json::Map<String, Value> {
     let mut entries = serde_json::Map::new();
     for model in models {
-        let variants = model_variants
-            .get(model)
-            .and_then(Value::as_object)
-            .filter(|variants| !variants.is_empty())
-            .map(sorted_variants);
+        let variants = opencode_model_variants(model);
+        let variants = (!variants.is_empty()).then(|| sorted_variants(&variants));
         let mut entry = serde_json::Map::new();
         entry.insert("name".to_string(), Value::String(model.clone()));
         if let Some(limit) = model_limit(model) {
@@ -149,18 +140,15 @@ fn sorted_variants(variants: &serde_json::Map<String, Value>) -> serde_json::Map
         .collect()
 }
 
-pub(crate) fn model_limit(model: &str) -> Option<Value> {
-    crate::model_metadata::model_limit(model)
-}
-
 fn variant_rank(variant: &str) -> u8 {
     match variant {
         "none" => 0,
-        "low" => 1,
-        "medium" => 2,
-        "high" => 3,
-        "xhigh" => 4,
-        "max" => 5,
+        "minimal" => 1,
+        "low" => 2,
+        "medium" => 3,
+        "high" => 4,
+        "xhigh" => 5,
+        "max" => 6,
         _ => u8::MAX,
     }
 }
@@ -169,17 +157,10 @@ fn variant_rank(variant: &str) -> u8 {
 mod tests {
     use super::build_model_entries;
     use serde_json::json;
-    use std::collections::BTreeMap;
 
     #[test]
     fn openai_fast_model_keeps_the_original_api_id() {
-        let variants = BTreeMap::from([(
-            "gpt-5.6-sol".to_string(),
-            json!({ "high": { "reasoningEffort": "high" } }),
-        )]);
-
-        let entries =
-            build_model_entries(&["gpt-5.6-sol".to_string()], &variants, "@ai-sdk/openai");
+        let entries = build_model_entries(&["gpt-5.6-sol".to_string()], "@ai-sdk/openai");
 
         assert_eq!(
             entries.get("gpt-5.6-sol-fast"),
@@ -187,7 +168,14 @@ mod tests {
                 "id": "gpt-5.6-sol",
                 "name": "gpt-5.6-sol-fast",
                 "limit": { "context": 1050000, "input": 922000, "output": 128000 },
-                "variants": { "high": { "reasoningEffort": "high" } },
+                "variants": {
+                    "none": {},
+                    "low": { "reasoningEffort": "low" },
+                    "medium": { "reasoningEffort": "medium" },
+                    "high": { "reasoningEffort": "high" },
+                    "xhigh": { "reasoningEffort": "xhigh" },
+                    "max": { "reasoningEffort": "max" }
+                },
                 "options": { "serviceTier": "priority" }
             }))
         );
@@ -195,11 +183,7 @@ mod tests {
 
     #[test]
     fn openai_non_gpt_model_does_not_get_a_fast_alias() {
-        let entries = build_model_entries(
-            &["claude-sonnet-4-6".to_string()],
-            &BTreeMap::new(),
-            "@ai-sdk/openai",
-        );
+        let entries = build_model_entries(&["claude-sonnet-4-6".to_string()], "@ai-sdk/openai");
 
         assert!(entries.contains_key("claude-sonnet-4-6"));
         assert!(!entries.contains_key("claude-sonnet-4-6-fast"));
@@ -207,27 +191,16 @@ mod tests {
 
     #[test]
     fn variants_are_ordered_from_low_to_high() {
-        let variants = BTreeMap::from([(
-            "gpt-5.6".to_string(),
-            json!({
-                "high": {},
-                "max": {},
-                "medium": {},
-                "low": {},
-                "xhigh": {}
-            }),
-        )]);
-
-        let entries = build_model_entries(&["gpt-5.6".to_string()], &variants, "@ai-sdk/openai");
+        let entries = build_model_entries(&["gpt-5".to_string()], "@ai-sdk/openai");
         let variants = entries
-            .get("gpt-5.6")
+            .get("gpt-5")
             .and_then(|entry| entry.get("variants"))
             .and_then(|variants| variants.as_object())
             .expect("model variants should be present");
 
         assert_eq!(
             variants.keys().collect::<Vec<_>>(),
-            ["low", "medium", "high", "xhigh", "max"]
+            ["minimal", "low", "medium", "high"]
         );
     }
 
@@ -235,7 +208,6 @@ mod tests {
     fn known_model_gets_official_limit() {
         let entries = build_model_entries(
             &["claude-opus-4-6".to_string()],
-            &BTreeMap::new(),
             "@ai-sdk/openai-compatible",
         );
 
@@ -251,13 +223,16 @@ mod tests {
     fn unknown_model_has_no_limit() {
         let entries = build_model_entries(
             &["custom-local-model".to_string()],
-            &BTreeMap::new(),
             "@ai-sdk/openai-compatible",
         );
 
         assert!(entries
             .get("custom-local-model")
             .and_then(|entry| entry.get("limit"))
+            .is_none());
+        assert!(entries
+            .get("custom-local-model")
+            .and_then(|entry| entry.get("variants"))
             .is_none());
     }
 }

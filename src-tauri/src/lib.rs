@@ -20,6 +20,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(test_runner::AppState::default())
         .invoke_handler(tauri::generate_handler![
+            model_metadata::refresh_model_metadata,
             endpoints::load_endpoints,
             endpoints::add_endpoint,
             endpoints::delete_endpoint,

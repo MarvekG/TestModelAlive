@@ -5,6 +5,10 @@ export function loadTestSettingsApi() {
   return invokeCommand<TestSettings>("load_test_settings");
 }
 
+export function refreshModelMetadataApi() {
+  return invokeCommand<boolean>("refresh_model_metadata");
+}
+
 export function fetchModelsApi(request: Record<string, unknown>) {
   return invokeCommand<string[]>("fetch_models", { request });
 }

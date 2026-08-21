@@ -6,7 +6,6 @@ use crate::cli_config::types::{
     CliConfigPreview, CliConfigPreviewFile, CliConfigTargetKind, EditedCliConfig,
     OpenCodeTimeoutOptions,
 };
-use crate::model_metadata::opencode_model_variants;
 use crate::models::SavedEndpoint;
 use crate::paths::cli_target_files;
 
@@ -38,7 +37,6 @@ pub(crate) fn build_preview(
                 &files,
                 default_model,
                 timeouts,
-                opencode_model_variants(),
             )?;
             warnings = preview_warnings;
             files

@@ -379,29 +379,49 @@ mod tests {
 
     #[test]
     fn requested_models_use_advertised_reasoning_variants() {
-        let variants = opencode_model_variants();
-        let generic = json!({
+        let gpt = json!({
+            "none": {},
             "low": { "reasoningEffort": "low" },
             "medium": { "reasoningEffort": "medium" },
-            "high": { "reasoningEffort": "high" }
+            "high": { "reasoningEffort": "high" },
+            "xhigh": { "reasoningEffort": "xhigh" }
         });
-        let north = json!({
-            "none": { "reasoningEffort": "none" },
-            "high": { "reasoningEffort": "high" }
+        let deepseek_flash = json!({
+            "low": { "reasoningEffort": "low" },
+            "high": { "reasoningEffort": "high" },
+            "max": { "reasoningEffort": "max" }
+        });
+        let deepseek_pro = json!({
+            "high": { "reasoningEffort": "high" },
+            "max": { "reasoningEffort": "max" }
         });
 
-        for model in ["hy3", "laguna-s-2.1", "ling-3.0-flash"] {
-            assert_eq!(variants.get(model), Some(&generic));
+        for model in ["gpt-5.4", "gpt-5.5"] {
+            assert_eq!(opencode_model_variants(model), *gpt.as_object().unwrap());
         }
-        assert_eq!(variants.get("north-mini-code"), Some(&north));
-        for model in [
-            "ling-3.0-tiny",
-            "mimo-v2.5",
-            "nemotron-3-ultra",
-            "nemotron-3.5-lightning",
-        ] {
-            assert_eq!(variants.get(model), Some(&json!({})));
-        }
+        assert_eq!(
+            opencode_model_variants("gpt-5.6"),
+            *json!({
+                "none": {},
+                "low": { "reasoningEffort": "low" },
+                "medium": { "reasoningEffort": "medium" },
+                "high": { "reasoningEffort": "high" },
+                "xhigh": { "reasoningEffort": "xhigh" },
+                "max": { "reasoningEffort": "max" }
+            })
+            .as_object()
+            .unwrap()
+        );
+        assert_eq!(
+            opencode_model_variants("deepseek-v4-flash"),
+            *deepseek_flash.as_object().unwrap()
+        );
+        assert_eq!(
+            opencode_model_variants("deepseek-v4-pro"),
+            *deepseek_pro.as_object().unwrap()
+        );
+        // Models without effort options get no variants.
+        assert!(opencode_model_variants("minimax-m3").is_empty());
     }
 
     #[test]
