@@ -12,7 +12,6 @@ pub(crate) mod opencode;
 pub(crate) mod process;
 
 use crate::cli_config::types::CliConfigTargetKind;
-use crate::model_metadata::opencode_model_variants;
 use crate::models::{SavedEndpoint, TestMessage, TestModelsRequest, TestResult};
 use process::{emit_test_log, run_command, stop_requested, terminate_child, TestCommand};
 
@@ -203,9 +202,7 @@ fn run_model_test(
     let command = match endpoint.endpoint_type.as_str() {
         "codex" => codex::prepare_codex(app, endpoint, model, prompt)?,
         "claude" => claude::prepare_claude(app, endpoint, model, prompt)?,
-        "opencode" => {
-            opencode::prepare_opencode(app, endpoint, model, prompt, opencode_model_variants())?
-        }
+        "opencode" => opencode::prepare_opencode(app, endpoint, model, prompt)?,
         "deepseek" => deepseek::prepare_deepseek(app, endpoint, model, prompt)?,
         _ => {
             return Err(format!(

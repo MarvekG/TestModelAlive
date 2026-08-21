@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::cli_config::types::{CliConfigPreviewFile, CliConfigPreviewWarning};
-use crate::model_metadata::{dsh_default_input, model_limit, opencode_model_variants};
+use crate::model_metadata::model_profile;
 use crate::models::SavedEndpoint;
 
 use super::preview::preview_file;
@@ -258,8 +258,8 @@ fn provider_definition(endpoint: &SavedEndpoint, models: &[String], api_protocol
 fn model_definition(model: &str) -> Value {
     let mut model_entry = Mapping::new();
     model_entry.insert(yaml_key("id"), Value::String(model.to_string()));
-    if let Some(profile) = known_model_profile(model) {
-        // Reuse the model capabilities from OpenCode, but emit DSH's YAML schema.
+    if let Some(profile) = model_profile(model) {
+        // Reuse the model capabilities from models.dev, but emit DSH's YAML schema.
         if let Some(context_window) = profile.context_window {
             model_entry.insert(yaml_key("contextWindow"), Value::from(context_window));
         }
@@ -288,53 +288,6 @@ fn model_definition(model: &str) -> Value {
         }
     }
     Value::Mapping(model_entry)
-}
-
-struct ModelProfile {
-    context_window: Option<u64>,
-    max_tokens: Option<u64>,
-    input: Vec<String>,
-    reasoning_efforts: Vec<(String, Option<String>)>,
-}
-
-fn known_model_profile(model: &str) -> Option<ModelProfile> {
-    let (context_window, max_tokens) = model_limit(model)
-        .and_then(|limit| {
-            Some((
-                limit.get("context")?.as_u64()?,
-                limit.get("output")?.as_u64()?,
-            ))
-        })
-        .map(|(context_window, max_tokens)| (Some(context_window), Some(max_tokens)))
-        .unwrap_or((None, None));
-    let mut reasoning_efforts: Vec<(String, Option<String>)> = opencode_model_variants()
-        .get(model)
-        .and_then(serde_json::Value::as_object)
-        .map(|variants| {
-            variants
-                .keys()
-                .filter_map(|level| match level.as_str() {
-                    "none" => Some(("off".to_string(), None)),
-                    "minimal" | "low" | "medium" | "high" | "xhigh" | "max" => {
-                        Some((level.clone(), Some(level.clone())))
-                    }
-                    _ => None,
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    if reasoning_efforts.iter().all(|(level, _)| level == "off") {
-        reasoning_efforts.clear();
-    }
-    if context_window.is_none() && max_tokens.is_none() && reasoning_efforts.is_empty() {
-        return None;
-    }
-    Some(ModelProfile {
-        context_window,
-        max_tokens,
-        input: dsh_default_input().to_vec(),
-        reasoning_efforts,
-    })
 }
 
 fn select_default_model(
@@ -621,7 +574,7 @@ mod tests {
                     "contextWindow": 1_000_000,
                     "maxTokens": 384_000,
                     "input": ["text"],
-                    "reasoningEfforts": { "low": "low", "medium": "medium", "high": "high", "max": "max" }
+                    "reasoningEfforts": { "low": "low", "high": "high", "max": "max" }
                 },
                 { "id": "example-model" }
             ])
@@ -658,7 +611,7 @@ mod tests {
                     "contextWindow": 1_000_000,
                     "maxTokens": 384_000,
                     "input": ["text"],
-                    "reasoningEfforts": { "low": "low", "medium": "medium", "high": "high", "max": "max" }
+                    "reasoningEfforts": { "low": "low", "high": "high", "max": "max" }
                 },
                 { "id": "example-model" }
             ])

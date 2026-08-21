@@ -1,5 +1,3 @@
-use serde_json::Value;
-use std::collections::BTreeMap;
 use std::fs;
 
 use crate::cli_config::opencode::build_model_entries;
@@ -12,7 +10,6 @@ pub(crate) fn prepare_opencode(
     endpoint: &SavedEndpoint,
     model: &str,
     prompt: &str,
-    model_variants: &BTreeMap<String, Value>,
 ) -> Result<TestCommand, String> {
     let opencode_home = app_data_dir(app)?.join("opencode-home");
     let config_path = opencode_home
@@ -30,11 +27,7 @@ pub(crate) fn prepare_opencode(
                     "baseURL": endpoint.base_url,
                     "apiKey": endpoint.api_key
                 },
-                "models": build_model_entries(
-                    &[model.to_string()],
-                    model_variants,
-                    &endpoint.opencode_sdk_package,
-                )
+                "models": build_model_entries(&[model.to_string()], &endpoint.opencode_sdk_package)
             }
         }
     });
