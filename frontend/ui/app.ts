@@ -9,7 +9,7 @@ import { bind, setBusy } from "../utils/dom";
 import { maskKey } from "../utils/mask";
 import { renderApp } from "./renderApp";
 import { getElements } from "./elements";
-import { clearEndpointForm, readEndpointForm } from "./endpointForm";
+import { buildTestModelSelectionRequest, clearEndpointForm, readEndpointForm } from "./endpointForm";
 import { endpointTypeLabel, renderEndpointRows, setEndpointChecks as updateEndpointChecks } from "./endpointList";
 import { invertSelection, renderCheckList, setSelection } from "./modelList";
 import { appendTimestampedLog, renderTestLogs as renderLogPanel } from "./logPanel";
@@ -553,7 +553,7 @@ export function initApp() {
     }
     setBusy("test-save-models", true);
     try {
-      const savedEndpoint = await addEndpointApi({ name: testEndpoint.name, type: testEndpoint.type, base_url: testEndpoint.base_url, api_key: testEndpoint.api_key, models, overwrite: true });
+      const savedEndpoint = await addEndpointApi(buildTestModelSelectionRequest(testEndpoint, models));
       testEndpoint = savedEndpoint;
       testSelection = new Set(models);
       selectedEndpointId = savedEndpoint.id;
