@@ -1,5 +1,17 @@
-import type { EndpointType } from "../types";
+import type { EndpointType, SavedEndpoint } from "../types";
 import type { UiElements } from "./elements";
+
+export function buildTestModelSelectionRequest(endpoint: SavedEndpoint, models: string[]) {
+  return {
+    name: endpoint.name,
+    type: endpoint.type,
+    opencode_sdk_package: endpoint.opencode_sdk_package,
+    base_url: endpoint.base_url,
+    api_key: endpoint.api_key,
+    models,
+    overwrite: true,
+  };
+}
 
 export async function readEndpointForm(elements: UiElements, title: string, showAlert: (title: string, message: string) => Promise<void>, t: (key: string) => string) {
   const request = {
