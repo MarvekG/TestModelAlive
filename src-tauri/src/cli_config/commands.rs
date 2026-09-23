@@ -139,8 +139,10 @@ pub fn apply_cli_config(
         .to_string();
         let content = normalize_edited_content(&target, &file.file_id, &target_path, &file.content);
         let write_result = content.and_then(|content| {
-            if matches!(target, CliConfigTargetKind::Deepseek)
-                && file.file_id == "deepseek-credentials"
+            if (matches!(target, CliConfigTargetKind::Codex)
+                && (file.file_id == "codex-auth" || file.file_id == "codex-config"))
+                || (matches!(target, CliConfigTargetKind::Deepseek)
+                    && file.file_id == "deepseek-credentials")
             {
                 write_owner_only_text_file(&target_path, &content)
             } else {
