@@ -573,7 +573,7 @@ mod tests {
                     "id": "deepseek-v4-flash",
                     "contextWindow": 1_000_000,
                     "maxTokens": 384_000,
-                    "input": ["text"],
+                    "input": ["text", "image"],
                     "reasoningEfforts": { "low": "low", "high": "high", "max": "max" }
                 },
                 { "id": "example-model" }
@@ -610,7 +610,7 @@ mod tests {
                     "id": "deepseek-v4-flash",
                     "contextWindow": 1_000_000,
                     "maxTokens": 384_000,
-                    "input": ["text"],
+                    "input": ["text", "image"],
                     "reasoningEfforts": { "low": "low", "high": "high", "max": "max" }
                 },
                 { "id": "example-model" }

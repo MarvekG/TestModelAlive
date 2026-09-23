@@ -7,11 +7,7 @@ use std::time::Duration;
 
 /// Snapshot of https://models.dev/api.json prepared in Cargo's output directory
 /// by build.rs. The build script uses the checked-in resource as its fallback.
-#[cfg(not(test))]
 const EMBEDDED_METADATA: &str = include_str!(concat!(env!("OUT_DIR"), "/models_dev_api.json"));
-#[cfg(test)]
-// Keep unit tests deterministic when build.rs downloads newer upstream metadata.
-const EMBEDDED_METADATA: &str = include_str!("../resources/models_dev_api.json");
 
 const MODELS_DEV_URL: &str = "https://models.dev/api.json";
 const CACHE_FILE_NAME: &str = "models_dev_api.json";
@@ -553,7 +549,7 @@ mod tests {
         let profile = model_profile("deepseek-v4-flash").expect("profile should exist");
         assert_eq!(profile.context_window, Some(1_000_000));
         assert_eq!(profile.max_tokens, Some(384_000));
-        assert_eq!(profile.input, vec!["text".to_string()]);
+        assert_eq!(profile.input, vec!["text".to_string(), "image".to_string()]);
         assert_eq!(
             profile.reasoning_efforts,
             vec![
