@@ -392,6 +392,7 @@ mod tests {
             "max": { "reasoningEffort": "max" }
         });
         let deepseek_pro = json!({
+            "low": { "reasoningEffort": "low" },
             "high": { "reasoningEffort": "high" },
             "max": { "reasoningEffort": "max" }
         });

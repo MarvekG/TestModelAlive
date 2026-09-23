@@ -549,7 +549,7 @@ mod tests {
         let profile = model_profile("deepseek-v4-flash").expect("profile should exist");
         assert_eq!(profile.context_window, Some(1_000_000));
         assert_eq!(profile.max_tokens, Some(384_000));
-        assert_eq!(profile.input, vec!["text".to_string()]);
+        assert_eq!(profile.input, vec!["text".to_string(), "image".to_string()]);
         assert_eq!(
             profile.reasoning_efforts,
             vec![

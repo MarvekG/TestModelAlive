@@ -46,9 +46,17 @@ fn merge_codex_toml(path: &Path, endpoint: &SavedEndpoint, model: &str) -> Resul
     provider["name"] = toml_edit::value(endpoint.name.as_str());
     provider["base_url"] = toml_edit::value(endpoint.base_url.as_str());
     provider["wire_api"] = toml_edit::value("responses");
+    provider["model_catalog_url"] = toml_edit::value(format!(
+        "{}/models",
+        endpoint.base_url.trim_end_matches('/')
+    ));
+    provider["experimental_bearer_token"] = toml_edit::value(endpoint.api_key.as_str());
     if let Some(table) = provider.as_table_mut() {
         table.remove("env_key");
         table.remove("requires_openai_auth");
+        table.remove("auth");
     }
+    doc["features"].or_insert(toml_edit::table())["api_key_model_discovery"] =
+        toml_edit::value(true);
     Ok(format!("{}\n", doc))
 }
