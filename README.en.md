@@ -124,6 +124,11 @@ The success condition is configurable:
 - The prompt must explicitly include the success keyword and require the model to output it.
 - A model is marked available when the command output contains the success keyword.
 
+## Codex Configuration
+
+- When applying a Codex endpoint, the app writes the model metadata's context window to `model_context_window` in `config.toml`; you can adjust the value in the preview.
+- If the model metadata has no matching context window, the app preserves the existing value.
+
 ## DeepSeek Harness Configuration
 
 - For a DeepSeek Harness endpoint, select one or more models, click "Apply to DeepSeek Harness", and choose one of them as the default model.

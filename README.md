@@ -124,6 +124,11 @@ Windows 下对应：
 - 提示词必须明确包含成功关键词，并要求模型输出它。
 - 命令输出中包含成功关键词时，模型会被标记为可用。
 
+## Codex 配置
+
+- 应用 Codex 端点时，会将模型元数据中的上下文窗口写入 `config.toml` 的 `model_context_window`；预览中可以按需调整该值。
+- 如果模型元数据没有匹配到上下文窗口，应用会保留现有配置中的值。
+
 ## DeepSeek Harness 配置
 
 - 在 DeepSeek Harness 类型端点中选择一个或多个模型后，可点击“应用到 DeepSeek Harness”，并选择其中一个默认模型。

@@ -571,8 +571,8 @@ mod tests {
             json!([
                 {
                     "id": "deepseek-v4-flash",
-                    "contextWindow": 1_000_000,
-                    "maxTokens": 384_000,
+                    "contextWindow": 1_048_576,
+                    "maxTokens": 393_216,
                     "input": ["text", "image"],
                     "reasoningEfforts": { "low": "low", "high": "high", "max": "max" }
                 },
@@ -608,8 +608,8 @@ mod tests {
             json!([
                 {
                     "id": "deepseek-v4-flash",
-                    "contextWindow": 1_000_000,
-                    "maxTokens": 384_000,
+                    "contextWindow": 1_048_576,
+                    "maxTokens": 393_216,
                     "input": ["text", "image"],
                     "reasoningEfforts": { "low": "low", "high": "high", "max": "max" }
                 },
