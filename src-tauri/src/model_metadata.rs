@@ -481,7 +481,7 @@ mod tests {
     fn official_records_win_for_known_models() {
         assert_eq!(
             model_limit("deepseek-v4-flash"),
-            Some(json!({ "context": 1_000_000, "output": 384_000 }))
+            Some(json!({ "context": 1_048_576, "output": 393_216 }))
         );
         assert_eq!(
             model_limit("claude-opus-4-6"),
@@ -547,8 +547,8 @@ mod tests {
     #[test]
     fn profiles_carry_capacity_input_and_reasoning() {
         let profile = model_profile("deepseek-v4-flash").expect("profile should exist");
-        assert_eq!(profile.context_window, Some(1_000_000));
-        assert_eq!(profile.max_tokens, Some(384_000));
+        assert_eq!(profile.context_window, Some(1_048_576));
+        assert_eq!(profile.max_tokens, Some(393_216));
         assert_eq!(profile.input, vec!["text".to_string(), "image".to_string()]);
         assert_eq!(
             profile.reasoning_efforts,
@@ -573,7 +573,7 @@ mod tests {
     fn qualified_ids_resolve_to_the_bare_model_name() {
         assert_eq!(
             model_limit("any-gateway/deepseek-v4-flash"),
-            Some(json!({ "context": 1_000_000, "output": 384_000 }))
+            Some(json!({ "context": 1_048_576, "output": 393_216 }))
         );
     }
 }
